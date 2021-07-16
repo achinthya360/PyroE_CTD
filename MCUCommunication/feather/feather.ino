@@ -1,13 +1,14 @@
-#include <SoftwareSerial.h>
-//#include <ArduinoLowPower.h>
+//#include <SoftwareSerial.h>
+#include <ArduinoLowPower.h>
 
 // libraries for temperature sensor
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
-#define INTERRUPT_PIN 2
+// define interrupt pin to use for wakeup
+const int int_pin = 5;
 
-SoftwareSerial softSerial(10, 11);
+//SoftwareSerial softSerial(10, 11);
 char ip;
 
 OneWire oneWire(6); // Define the OneWire port for temperature.
@@ -32,6 +33,10 @@ int tempDDelayStartTime; // Define a variable to mark when we requested a temper
 int tempEDelayStartTime; // Define a variable to mark when we requested a temperature mesurement from C so we can wait the required delay before reading the value.
 int requiredMesurementDelay = sensors.millisToWaitForConversion(TEMP_SENSOR_RESOLUTION);
 
+// use a variable to store the number of measurements taken by sensors on each wakeup
+int measurements = 0;
+
+
 void setup()  
 {
   sensors.begin();  // Intialize the temperature sensors.
@@ -46,13 +51,22 @@ void setup()
   sensors.setWaitForConversion(false);  // Now tell the Dallas Temperature library to not block this script while it's waiting for the temperature mesurement to happen
 
   
-  softSerial.begin(9600);
+//  softSerial.begin(9600);
   Serial.begin(9600);
   pinMode(LED_BUILTIN, OUTPUT);
-//  LowPower.attachInterruptWakeup(pin, callback, mode); 
+
+  // setup interrupt pin
+  pinMode(int_pin, INPUT_PULLUP);
+  // set interrupt pin as wakeup pin
+  LowPower.attachInterruptWakeup(int_pin, turn_on, CHANGE); 
+  delay(1000);
+  Serial.print("Interrupt set on pin: ");
+  Serial.println(int_pin);
 } 
+
 void loop()  
 { 
+  digitalWrite(LED_BUILTIN, HIGH);
   // Read the temperature sensors.
     if (millis() - tempADelayStartTime > requiredMesurementDelay) { // wait for conversion to happen before attempting to read temp probe A's value;
       tempA = get_temp_c_by_index(0);
@@ -80,14 +94,14 @@ void loop()
       tempEDelayStartTime = millis();  // mark when we made the request to make sure we wait long enough before reading it.
     }
     
-  if (softSerial.available())
-  {
-    ip=softSerial.read();
-    if(ip == 1){
-      digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
-    }
+//  if (softSerial.available())
+//  {
+//    ip=softSerial.read();
+//    if(ip == 1){
+//      digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+//    }
 //    Serial.print(ip);
-  }
+//  }
 
     Serial.print(tempA);
     Serial.print(" ");
@@ -106,6 +120,17 @@ void loop()
 //    Serial.print(",");
 //    Serial.print(tempC);
   delay(100);
+  measurements++;
+  if(measurements > 100){
+    // Feather falls asleep after 100 sensor measurements
+    Serial.println("Sleeping now");
+    digitalWrite(LED_BUILTIN, LOW);
+//    measurements = 0;
+    LowPower.sleep();
+//    LowPower.deepSleep(2000);
+//    USBDevice.attach();
+//    Serial.begin(9600);
+  }
 }
 
 float get_temp_c_by_index(int sensor_index) {
@@ -116,4 +141,11 @@ float get_temp_c_by_index(int sensor_index) {
   } else {
     return value; // otherwise return the measured value.
   }
+}
+
+// function run on every interrupt wakeup
+void turn_on(){
+  measurements = 0;
+  digitalWrite(LED_BUILTIN, HIGH);
+  Serial.println("Turned back on");
 }
