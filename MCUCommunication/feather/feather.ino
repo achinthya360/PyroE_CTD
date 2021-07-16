@@ -93,15 +93,6 @@ void loop()
       sensors.requestTemperaturesByIndex(4);  // request temp sensor E start mesuring so it can be read on the following loop (if enough time elapses).
       tempEDelayStartTime = millis();  // mark when we made the request to make sure we wait long enough before reading it.
     }
-    
-//  if (softSerial.available())
-//  {
-//    ip=softSerial.read();
-//    if(ip == 1){
-//      digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
-//    }
-//    Serial.print(ip);
-//  }
 
     Serial.print(tempA);
     Serial.print(" ");
@@ -114,22 +105,14 @@ void loop()
     Serial.print(tempE);
     Serial.print(" ");
     Serial.println(millis());
-    
-//    Serial.print(",");
-//    Serial.print(tempB);
-//    Serial.print(",");
-//    Serial.print(tempC);
+   
   delay(100);
   measurements++;
   if(measurements > 100){
     // Feather falls asleep after 100 sensor measurements
     Serial.println("Sleeping now");
     digitalWrite(LED_BUILTIN, LOW);
-//    measurements = 0;
     LowPower.sleep();
-//    LowPower.deepSleep(2000);
-//    USBDevice.attach();
-//    Serial.begin(9600);
   }
 }
 
@@ -144,6 +127,7 @@ float get_temp_c_by_index(int sensor_index) {
 }
 
 // function run on every interrupt wakeup
+// TODO: Serial does not turn on when MCU turns back on
 void turn_on(){
   measurements = 0;
   digitalWrite(LED_BUILTIN, HIGH);
