@@ -1,4 +1,5 @@
-//Date and time functions using a DS3231 RTC connected via I2C and Wire lib
+// Date and time functions using a DS3231 RTC connected via I2C and Wire lib
+// RTC comes from Featherwing attachment
 #include <Wire.h>
 #include "RTClib.h"
 
@@ -8,10 +9,10 @@
 // library setup for EC circuit UART
 #include <SoftwareSerial.h>
 
-//Software libary for the pressure sensor
+// libary for the pressure sensor
 #include <MS5803_14.h>
 
-// libraries for temperature sensor
+// libraries for temperature sensors
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
@@ -58,12 +59,12 @@ float tempB;
 float tempC;
 float tempD;
 float tempE;
-int tempADelayStartTime; // Define a variable to mark when we requested a temperature mesurement from A so we can wait the required delay before reading the value.
-int tempBDelayStartTime; // Define a variable to mark when we requested a temperature mesurement from B so we can wait the required delay before reading the value.
-int tempCDelayStartTime; // Define a variable to mark when we requested a temperature mesurement from C so we can wait the required delay before reading the value.
-int tempDDelayStartTime; // Define a variable to mark when we requested a temperature mesurement from C so we can wait the required delay before reading the value.
-int tempEDelayStartTime; // Define a variable to mark when we requested a temperature mesurement from C so we can wait the required delay before reading the value.
-int requiredMesurementDelay = sensors.millisToWaitForConversion(TEMP_SENSOR_RESOLUTION);
+int tempADelayStartTime; // Define a variable to mark when we requested a temperature measurement from A so we can wait the required delay before reading the value.
+int tempBDelayStartTime; // Define a variable to mark when we requested a temperature measurement from B so we can wait the required delay before reading the value.
+int tempCDelayStartTime; // Define a variable to mark when we requested a temperature measurement from C so we can wait the required delay before reading the value.
+int tempDDelayStartTime; // Define a variable to mark when we requested a temperature measurement from D so we can wait the required delay before reading the value.
+int tempEDelayStartTime; // Define a variable to mark when we requested a temperature measurement from E so we can wait the required delay before reading the value.
+int requiredmeasurementDelay = sensors.millisToWaitForConversion(TEMP_SENSOR_RESOLUTION);
 
 // use a variable to store the number of measurements taken by sensors on each wakeup
 int measurements = 0;
@@ -102,7 +103,7 @@ void setup()
   Serial.print("EC Board Info (Format: ?I,[board type],[Firmware Version]) -> "); Serial.println(EC_data);
 
   delay(10);
-  ecSerial.write('C');  // Tell electrical conductivity board to continously ("C") transmit mesurements ...
+  ecSerial.write('C');  // Tell electrical conductivity board to continously ("C") transmit measurements ...
   ecSerial.write(',');  //
   ecSerial.print(EC_SAMPLING_FREQUENCY);    // ... every x seconds (here x is the EC_SAMPLING_FREQUENCY variable)
   ecSerial.write('\r'); // Finish the command with the carrage return character.
@@ -122,7 +123,7 @@ void setup()
   tempD = get_temp_c_by_index(3);
   tempE = get_temp_c_by_index(4);
 
-  sensors.setWaitForConversion(false);  // Now tell the Dallas Temperature library to not block this script while it's waiting for the temperature mesurement to happen
+  sensors.setWaitForConversion(false);  // Now tell the Dallas Temperature library to not block this script while it's waiting for the temperature measurement to happen
   
   Serial.begin(9600);
   pinMode(LED_BUILTIN, OUTPUT);
@@ -131,6 +132,8 @@ void setup()
   pinMode(int_pin, INPUT_PULLUP);
   // set interrupt pin as wakeup pin
   LowPower.attachInterruptWakeup(int_pin, turn_on, CHANGE); 
+
+  // delay to wait for all set up to complete 
   delay(1000);
   Serial.print("Interrupt set on pin: ");
   Serial.println(int_pin);
@@ -154,27 +157,27 @@ void loop()
     }
 
    // Read the temperature sensors.
-    if (millis() - tempADelayStartTime > requiredMesurementDelay) { // wait for conversion to happen before attempting to read temp probe A's value;
+    if (millis() - tempADelayStartTime > requiredmeasurementDelay) { // wait for conversion to happen before attempting to read temp probe A's value;
       tempA = get_temp_c_by_index(0);
       sensors.requestTemperaturesByIndex(0);  // request temp sensor A start mesuring so it can be read on the following loop (if enough time elapses).
       tempADelayStartTime = millis();  // mark when we made the request to make sure we wait long enough before reading it.
     }
-    if (millis() - tempBDelayStartTime > requiredMesurementDelay) { // wait for conversion to happen before attempting to read temp probe B's value;
+    if (millis() - tempBDelayStartTime > requiredmeasurementDelay) { // wait for conversion to happen before attempting to read temp probe B's value;
       tempB = get_temp_c_by_index(1);
       sensors.requestTemperaturesByIndex(1);  // request temp sensor B start mesuring so it can be read on the following loop (if enough time elapses).
       tempBDelayStartTime = millis();  // mark when we made the request to make sure we wait long enough before reading it.
     }
-    if (millis() - tempCDelayStartTime > requiredMesurementDelay) { // wait for conversion to happen before attempting to read temp probe B's value;
+    if (millis() - tempCDelayStartTime > requiredmeasurementDelay) { // wait for conversion to happen before attempting to read temp probe B's value;
       tempC = get_temp_c_by_index(2);
       sensors.requestTemperaturesByIndex(2);  // request temp sensor C start mesuring so it can be read on the following loop (if enough time elapses).
       tempCDelayStartTime = millis();  // mark when we made the request to make sure we wait long enough before reading it.
     }
-    if (millis() - tempDDelayStartTime > requiredMesurementDelay) { // wait for conversion to happen before attempting to read temp probe B's value;
+    if (millis() - tempDDelayStartTime > requiredmeasurementDelay) { // wait for conversion to happen before attempting to read temp probe B's value;
       tempD = get_temp_c_by_index(3);
       sensors.requestTemperaturesByIndex(3);  // request temp sensor D start mesuring so it can be read on the following loop (if enough time elapses).
       tempDDelayStartTime = millis();  // mark when we made the request to make sure we wait long enough before reading it.
     }
-    if (millis() - tempEDelayStartTime > requiredMesurementDelay) { // wait for conversion to happen before attempting to read temp probe B's value;
+    if (millis() - tempEDelayStartTime > requiredmeasurementDelay) { // wait for conversion to happen before attempting to read temp probe B's value;
       tempE = get_temp_c_by_index(4);
       sensors.requestTemperaturesByIndex(4);  // request temp sensor E start mesuring so it can be read on the following loop (if enough time elapses).
       tempEDelayStartTime = millis();  // mark when we made the request to make sure we wait long enough before reading it.
