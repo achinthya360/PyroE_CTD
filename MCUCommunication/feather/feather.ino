@@ -6,6 +6,10 @@
 // library for sleep mode
 #include <ArduinoLowPower.h>
 
+//serial peripheral interface and library for SD card reader
+#include <SPI.h> //serial peripheral interface for SD card reader
+#include <SD.h> //library for SD card reader
+
 // library setup for EC circuit UART
 #include <SoftwareSerial.h>
 
@@ -72,6 +76,52 @@ int measurements = 0;
 
 void setup()  
 {
+  Serial.begin(9600);
+  pinMode(LED_BUILTIN, OUTPUT);
+
+   //Initialize SD card reader
+  Serial.print("Initializing SD card...");
+
+  while (!SD.begin(chipSelect)) {
+
+    Serial.println("Card failed, or not present");
+    delay(1000);
+
+  }
+
+  // This funny function allows the sd-library to set the correct file created & modified dates for all sd card files.
+  // (See the SDCardDateTimeCallback function defined at the end of this file)
+  SdFile::dateTimeCallback(SDCardDateTimeCallback);
+
+  Serial.println("card initialized.");
+
+  delay(1000);
+
+  if (! rtc.begin()) {
+
+    Serial.println("Couldn't find RTC");
+    while (1); // might have to comment out while RTC is still unavailable
+
+  }
+
+  get_numbered_filename(datalogFileName, "LOG", "CSV");
+
+  Serial.print("Writing to datalog: ");
+  Serial.println(datalogFileName);
+
+  File dataFile = SD.open(datalogFileName, FILE_WRITE);
+
+  if (dataFile) {
+    Serial.println("====================================================");
+    Serial.println("Date Time,Pressure,Temp A,Temp B,Temp C,Conductivity");
+    dataFile.println("Date Time,Pressure,Temp A,Temp B,Temp C,Conductivity");
+    dataFile.close();
+    Serial.println("====================================================");
+    Serial.println("Datalogging done");
+  } else {
+    Serial.println("Err: Can't open datalog!");
+  }
+  
   //Initialize real-time clock
   if (rtc.lostPower()) {
 
@@ -87,6 +137,19 @@ void setup()
   Serial.println("-- Pressure Sensor Info: --");
   sensor.initializeMS_5803(); // Initialize pressure sensor
   Serial.println("---------------------------");
+
+  // Intialize temperature sensors
+  sensors.begin();  
+  sensors.setResolution(TEMP_SENSOR_RESOLUTION);  // Set the resolution (accuracy) of the temperature sensors.
+  sensors.requestTemperatures(); // on the first pass request all temperatures in a blocking way to start the variables with true data.
+  tempA = get_temp_c_by_index(0);
+  tempB = get_temp_c_by_index(1);
+  tempC = get_temp_c_by_index(2);
+  tempD = get_temp_c_by_index(3);
+  tempE = get_temp_c_by_index(4);
+
+  sensors.setWaitForConversion(false);  // Now tell the Dallas Temperature library to not block this script while it's waiting for the temperature measurement to happen
+
 
   // Initialize conductivity sensor and circuit
   ecSerial.begin(9600); // Set baud rate for conductivity circuit.
@@ -113,21 +176,6 @@ void setup()
   Serial.print("EC Frequency Set Sucessfully? -> "); Serial.println(EC_data);
   Serial.println("--- Starting Datalogging ---");
 
-  // Intialize temperature sensors
-  sensors.begin();  
-  sensors.setResolution(TEMP_SENSOR_RESOLUTION);  // Set the resolution (accuracy) of the temperature sensors.
-  sensors.requestTemperatures(); // on the first pass request all temperatures in a blocking way to start the variables with true data.
-  tempA = get_temp_c_by_index(0);
-  tempB = get_temp_c_by_index(1);
-  tempC = get_temp_c_by_index(2);
-  tempD = get_temp_c_by_index(3);
-  tempE = get_temp_c_by_index(4);
-
-  sensors.setWaitForConversion(false);  // Now tell the Dallas Temperature library to not block this script while it's waiting for the temperature measurement to happen
-  
-  Serial.begin(9600);
-  pinMode(LED_BUILTIN, OUTPUT);
-
   // setup interrupt pin
   pinMode(int_pin, INPUT_PULLUP);
   // set interrupt pin as wakeup pin
@@ -142,7 +190,7 @@ void setup()
 void loop()  
 { 
   // turn LED on to show Feather is awake
-  digitalWrite(LED_BUILTIN, HIGH);
+  digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
   
   //Read electrical conductivity sensor
   if (ecSerial.available() > 0) {
@@ -208,17 +256,36 @@ void loop()
     Serial.println(EC);
     Serial.print(", ");
     Serial.println(millis());
-  }
+//  }
+
+    File dataFile = SD.open(datalogFileName, FILE_WRITE);
+    if (dataFile) {
+
+      dataFile.print(dateTimeString);
+      dataFile.print(",");
+      dataFile.print(pressure_abs);
+      dataFile.print(",");
+      dataFile.print(tempA);
+      dataFile.print(",");
+      dataFile.print(tempB);
+      dataFile.print(",");
+      dataFile.print(tempC);
+      dataFile.print(",");
+      dataFile.println(EC);
+      dataFile.close();
+
+      }
+ 
 
   // Tip: For a slower overall logging frequency, set the EC_SAMPLING_FREQUENCY variable rather than adding a delay (this will avoid the possibility of garbled ec sensor readings)
    
-  delay(100);
-  measurements++;
-  if(measurements > 100){
-    // Feather falls asleep after 100 sensor measurements
-    Serial.println("Sleeping now");
-    digitalWrite(LED_BUILTIN, LOW);
-    LowPower.sleep();
+//  delay(100);
+//  measurements++;
+//  if(measurements > 100){
+//    // Feather falls asleep after 100 sensor measurements
+//    Serial.println("Sleeping now");
+//    digitalWrite(LED_BUILTIN, LOW);
+//    LowPower.sleep();
   }
 }
 
@@ -250,4 +317,32 @@ void get_date_time_string(char* outStr, DateTime date) {
   // outputs the date as a date time string,
   sprintf(outStr, "%02d/%02d/%02d,%02d:%02d:%02d", date.month(), date.day(), date.year(), date.hour(), date.minute(), date.second());
   // Note: If you would like the date & time to be seperate columns chabge the space in the formatting string to a comma - this works because the file type is CSV (Comma Seperated Values)
+}
+
+void SDCardDateTimeCallback(uint16_t* date, uint16_t* time) // This funny function allows the sd-library to set the correct file created & modified dates for all sd card files (As would show up in the file explorer on your computer)
+{
+  DateTime now = rtc.now();
+  *date = FAT_DATE(now.year(), now.month(), now.day());
+  *time = FAT_TIME(now.hour(), now.minute(), now.second());
+}
+
+void get_numbered_filename(char* outStr, char* filePrefix, char* fileExtension) {
+
+  // Make base filename
+  sprintf(outStr, "%s000.%s", filePrefix, fileExtension);
+  int namelength = strlen(outStr);
+  if (namelength > 12) Serial.println("Error: filename too long. Shorten your filename to < 5 characters (12 chars total w number & file extension) !");
+
+  // Keep incrementing the number part of filename until we reach an unused filename
+  int i = 1;
+  while (SD.exists(outStr)) {  // keep looping if filename already exists on card. [If the filename doesn't exist, the loop exits, so we found our first unused filename!]
+
+    int hundreds = i / 100;
+    outStr[namelength - 7] = '0' + hundreds;
+    outStr[namelength - 6] = '0' + (i / 10) - (hundreds * 10);
+    outStr[namelength - 5] = '0' + i % 10;
+    i++;
+
+  }
+
 }
