@@ -4,7 +4,7 @@
 //
 // Changelog:
 //      2019-07-08 - Added Auto Calibration and offset generator
-//		   - and altered FIFO retrieval sequence to avoid using blocking code
+//       - and altered FIFO retrieval sequence to avoid using blocking code
 //      2016-04-18 - Eliminated a potential infinite loop
 //      2013-05-08 - added seamless Fastwire support
 //                 - added note about gyro calibration
@@ -107,7 +107,7 @@ MPU6050 mpu;
 // not compensated for orientation, so +X is always +X according to the
 // sensor, just without the effects of gravity. If you want acceleration
 // compensated for orientation, us OUTPUT_READABLE_WORLDACCEL instead.
-//#define OUTPUT_READABLE_REALACCEL
+#define OUTPUT_READABLE_REALACCEL
 
 // uncomment "OUTPUT_READABLE_WORLDACCEL" if you want to see acceleration
 // components with gravity removed and adjusted for the world frame of
@@ -165,8 +165,8 @@ void dmpDataReady() {
 void setup() {
     // join I2C bus (I2Cdev library doesn't do this automatically)
     #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
-        Wire.begin();
-        Wire.setClock(400000); // 400kHz I2C clock. Comment this line if having compilation difficulties
+        Wire2.begin();
+        Wire2.setClock(400000); // 400kHz I2C clock. Comment this line if having compilation difficulties
     #elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
         Fastwire::setup(400, true);
     #endif
@@ -203,12 +203,12 @@ void setup() {
     devStatus = mpu.dmpInitialize();
 
     // supply your own gyro offsets here, scaled for min sensitivity
-    mpu.setXGyroOffset(127);
-    mpu.setYGyroOffset(-24);
-    mpu.setZGyroOffset(-20);
-    mpu.setXAccelOffset(-6885);
-    mpu.setYAccelOffset(33);
-    mpu.setZAccelOffset(843); // 1688 factory default for my test chip
+    mpu.setXGyroOffset(104);
+    mpu.setYGyroOffset(-7);
+    mpu.setZGyroOffset(9);
+    mpu.setXAccelOffset(-1573);
+    mpu.setYAccelOffset(769);
+    mpu.setZAccelOffset(1095); // 1688 factory default for my test chip
 
     // make sure it worked (returns 0 if so)
     if (devStatus == 0) {
@@ -254,7 +254,6 @@ void setup() {
 // ================================================================
 
 void loop() {
-    delay(10000);
     // if programming failed, don't try to do anything
     if (!dmpReady) return;
     // read a packet from FIFO
@@ -296,7 +295,6 @@ void loop() {
             Serial.print("\t");
             Serial.print(ypr[2] * 180/M_PI);
             Serial.print("\t");
-            Serial.println(millis());
         #endif
 
         #ifdef OUTPUT_READABLE_REALACCEL
@@ -312,6 +310,7 @@ void loop() {
             Serial.print("\t");
             Serial.print(aaReal.z);
             Serial.print("\t");
+            Serial.println(millis());
         #endif
 
         #ifdef OUTPUT_READABLE_WORLDACCEL
