@@ -20,7 +20,7 @@ NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FO
 DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, 
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
-
+#include "Wire.h"
 #include "MPU9250.h"
 
 // an MPU9250 object with the MPU-9250 sensor on I2C bus 0 with address 0x68
@@ -64,6 +64,8 @@ void loop() {
   IMU.readSensor();
 
   // display the data
+  Serial.print(t);
+  Serial.print("\t");
   Serial.print(IMU.getAccelX_mss(),6);
   Serial.print("\t");
   Serial.print(IMU.getAccelY_mss(),6);
@@ -76,14 +78,15 @@ void loop() {
   Serial.print("\t");
   Serial.print(IMU.getGyroZ_rads(),6);
   Serial.print("\t");
-  Serial.print(IMU.getMagX_uT(),6);
-  Serial.print("\t");
-  Serial.print(IMU.getMagY_uT(),6);
-  Serial.print("\t");
-  Serial.print(IMU.getMagZ_uT(),6);
-  Serial.print("\t");
-  Serial.println(IMU.getTemperature_C(),6);
-  delay(200);
+  Serial.println(millis());
+//  Serial.print(IMU.getMagX_uT(),6);
+//  Serial.print("\t");
+//  Serial.print(IMU.getMagY_uT(),6);
+//  Serial.print("\t");
+//  Serial.print(IMU.getMagZ_uT(),6);
+//  Serial.print("\t");
+//  Serial.println(IMU.getTemperature_C(),6);
+  delay(20);
   }
 }
 
