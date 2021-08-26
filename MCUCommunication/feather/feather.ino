@@ -10,7 +10,7 @@
 #include <SPI.h> //serial peripheral interface for SD card reader
 #include <SD.h> //library for SD card reader
 
-// library setup for EC circuit UART
+// library setup for ECf circuit UART
 #include <SoftwareSerial.h>
 
 // libary for the pressure sensor
@@ -82,12 +82,13 @@ void setup()
 #endif
 
   Serial.begin(9600);
+  Serial1.begin(9600);
   pinMode(LED_BUILTIN, OUTPUT);
-  digitalWrite(LED_BUILTIN, LOW);
+  digitalWrite(LED_BUILTIN, HIGH);
 
   //Initialize SD card reader
   Serial.print("Initializing SD card...");
-  digitalWrite(LED_BUILTIN, HIGH);
+//  digitalWrite(LED_BUILTIN, HIGH);
 
   while (!SD.begin(chipSelect)) {
 
@@ -288,9 +289,10 @@ void loop()
     // Tip: For a slower overall logging frequency, set the EC_SAMPLING_FREQUENCY variable rather than adding a delay (this will avoid the possibility of garbled ec sensor readings)
 
     measurements++;
-        if (measurements > 100) {
+        if (measurements > 20) {
           // Feather falls asleep after 100 sensor measurements
           Serial.println("Sleeping now");
+          Serial1.write("o");
           digitalWrite(LED_BUILTIN, LOW);
           LowPower.sleep();
         }
