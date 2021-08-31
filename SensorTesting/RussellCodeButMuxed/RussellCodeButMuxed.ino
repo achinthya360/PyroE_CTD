@@ -7,31 +7,31 @@ MPU9250 mpu, mpu2, mpu3;
 void setup() {
   Serial.begin(115200);
   Wire.begin();
-  Wire.setClock(10);
+//  Wire.setClock(10);
   delay(2000);
 
   Serial.println("Beginning Calibration");
 
-//  tcaselect(0);
-//
-//  if (!mpu.setup(0x68)) {  // change to your own address
-//    while (1) {
-//      Serial.println("MPU connection failed. Please check your connection with `connection_check` example.");
-//      delay(5000);
-//    }
-//  }
+  tcaselect(0);
 
-//  mpu.calibrateAccelGyro();
-//
-//  tcaselect(1);
-//  if (!mpu2.setup(0x68)) {  // change to your own address
-//    while (1) {
-//      Serial.println("MPU connection failed. Please check your connection with `connection_check` example.");
-//      delay(5000);
-//    }
-//  }
-//
-//  mpu2.calibrateAccelGyro();
+  if (!mpu.setup(0x68)) {  // change to your own address
+    while (1) {
+      Serial.println("MPU connection failed. Please check your connection with `connection_check` example.");
+      delay(5000);
+    }
+  }
+
+  mpu.calibrateAccelGyro();
+
+  tcaselect(1);
+  if (!mpu2.setup(0x68)) {  // change to your own address
+    while (1) {
+      Serial.println("MPU connection failed. Please check your connection with `connection_check` example.");
+      delay(5000);
+    }
+  }
+
+  mpu2.calibrateAccelGyro();
 
   tcaselect(2);
   if (!mpu3.setup(0x68)) {  // change to your own address
@@ -47,23 +47,23 @@ void setup() {
 }
 
 void loop() {
-//  tcaselect(0);
-//  if (mpu.update()) {
-//    static uint32_t prev_ms = millis();
-//    if (millis() > prev_ms + 100) {
-//      print_roll_pitch_yaw();
-//      prev_ms = millis();
-//    }
-//  }
-//
-//  tcaselect(1);
-//  if (mpu2.update()) {
-//    static uint32_t prev_ms2 = millis();
-//    if (millis() > prev_ms2 + 100) {
-//      print2_roll_pitch_yaw();
-//      prev_ms2 = millis();
-//    }
-//  }
+  tcaselect(0);
+  if (mpu.update()) {
+    static uint32_t prev_ms = millis();
+    if (millis() > prev_ms + 100) {
+      print_roll_pitch_yaw();
+      prev_ms = millis();
+    }
+  }
+
+  tcaselect(1);
+  if (mpu2.update()) {
+    static uint32_t prev_ms2 = millis();
+    if (millis() > prev_ms2 + 100) {
+      print2_roll_pitch_yaw();
+      prev_ms2 = millis();
+    }
+  }
 
   tcaselect(2);
   if (mpu3.update()) {
