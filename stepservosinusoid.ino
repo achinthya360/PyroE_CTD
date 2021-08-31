@@ -8,13 +8,18 @@
 // Copyright (C) 2009 Mike McCauley
 // $Id: Blocking.pde,v 1.1 2011/01/05 01:51:01 mikem Exp mikem $
 
-long amplitude = 200; // half revolution for 800 microstep setting of driver
-float max_speed = 5000; // maximum possible ~ 5000
-float accel = 90000;  // maximum possible ~ 85000
+#define kinematic_coeff 3.35
+const float max_speed = 5000; // maximum possible ~ 5000
+
+float microsteps = 800; // from driver
+float theta_max = 90; // degrees
+long amplitude = microsteps/360*theta_max; // microsteps needed to reach wanted angle
+//float accel = 90000;  // maximum possible ~ 85000
+float freq_wanted = 1;
 
 // theoretical calculations assume constant linear stepping acceleration
-float freq = sqrt(accel)/80; // f = sqrt(a)/80 -> could be used to back calculate accel
-float a = 6400*pow(freq, 2); // a = 6400*f^2
+//float freq = 3.35 * sqrt(accel/(theta_max * microsteps)); // could be used to back calculate accel
+float a = pow(freq_wanted*sqrt(theta_max*microsteps)/kinematic_coeff, 2); // a = (f * sqrt(theta * microsteps) / 3.35) ^ 2
 
 #include <AccelStepper.h>
 
@@ -24,7 +29,7 @@ AccelStepper stepper(AccelStepper::DRIVER, 3, 2); // Defaults to AccelStepper::F
 void setup()
 {
   stepper.setMaxSpeed(max_speed);
-  stepper.setAcceleration(accel);
+  stepper.setAcceleration(a);
 
   // following pins 4 and 5 could also just be GNDed
   pinMode(4, OUTPUT);
