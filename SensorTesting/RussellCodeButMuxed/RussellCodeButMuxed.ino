@@ -1,21 +1,24 @@
 #include "MPU9250.h"
 
+// tail end is mpu (SD0/SC0)
+// motor end is mpu 2 (SD2/SC2)  
+
 #define TCAADDR 0x70
 
 MPU9250 mpu, mpu2, mpu3;
 
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(9600);
   Wire.begin();
 //  Wire.setClock(10);
   delay(2000);
 
   Serial.println("Beginning Calibration");
 
-  tcaselect(0);
+//  tcaselect(0);
 
   if (!mpu.setup(0x68)) {  // change to your own address
-    while (1) {
+    while (!mpu.setup(0x68)) {
       Serial.println("MPU connection failed. Please check your connection with `connection_check` example.");
       delay(5000);
     }
@@ -23,9 +26,9 @@ void setup() {
 
   mpu.calibrateAccelGyro();
 
-  tcaselect(1);
-  if (!mpu2.setup(0x68)) {  // change to your own address
-    while (1) {
+//  tcaselect(1);
+  if (!mpu2.setup(0x69)) {  // change to your own address
+    while (!mpu2.setup(0x68)) {
       Serial.println("MPU connection failed. Please check your connection with `connection_check` example.");
       delay(5000);
     }
@@ -33,9 +36,9 @@ void setup() {
 
   mpu2.calibrateAccelGyro();
 
-  tcaselect(2);
-  if (!mpu3.setup(0x68)) {  // change to your own address
-    while (1) {
+//  tcaselect(2);
+  if (!mpu3.setup(0x68, MPU9250Setting(), Wire1)) {  // change to your own address
+    while (!mpu3.setup(0x68)) {
       Serial.println("MPU connection failed. Please check your connection with `connection_check` example.");
       delay(5000);
     }
@@ -47,7 +50,7 @@ void setup() {
 }
 
 void loop() {
-  tcaselect(0);
+//  tcaselect(0);
   if (mpu.update()) {
     static uint32_t prev_ms = millis();
     if (millis() > prev_ms + 100) {
@@ -56,7 +59,7 @@ void loop() {
     }
   }
 
-  tcaselect(1);
+//  tcaselect(1);
   if (mpu2.update()) {
     static uint32_t prev_ms2 = millis();
     if (millis() > prev_ms2 + 100) {
@@ -65,7 +68,7 @@ void loop() {
     }
   }
 
-  tcaselect(2);
+//  tcaselect(2);
   if (mpu3.update()) {
     static uint32_t prev_ms2 = millis();
     if (millis() > prev_ms2 + 100) {
@@ -134,9 +137,9 @@ void print3_roll_pitch_yaw() {
   Serial.println(mpu3.getAccZ(), 2);
 }
 
-void tcaselect(uint8_t i) {
-  if (i > 7) return;
-  Wire.beginTransmission(TCAADDR);
-  Wire.write(1 << i);
-  Wire.endTransmission();
-}
+//void tcaselect(uint8_t i) {
+//  if (i > 7) return;
+//  Wire.beginTransmission(TCAADDR);
+//  Wire.write(1 << i);
+//  Wire.endTransmission();
+//}

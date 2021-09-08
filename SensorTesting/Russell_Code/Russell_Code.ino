@@ -14,12 +14,12 @@ void setup() {
         }
     }
 
-//    if (!mpu2.setup(0x69)) {  // change to your own address
-//        while (1) {
-//            Serial.println("MPU connection failed. Please check your connection with `connection_check` example.");
-//            delay(5000);
-//        }
-//    }
+    if (!mpu2.setup(0x69)) {  // change to your own address
+        while (1) {
+            Serial.println("MPU connection failed. Please check your connection with `connection_check` example.");
+            delay(5000);
+        }
+    }
 }
 
 void loop() {
@@ -31,13 +31,13 @@ void loop() {
         }
     }
 
-//    if (mpu2.update()) {
-//        static uint32_t prev_ms2 = millis();
-//        if (millis() > prev_ms2 + 100) {
-//            print2_roll_pitch_yaw();
-//            prev_ms2 = millis();
-//        }
-//    }
+    if (mpu2.update()) {
+        static uint32_t prev_ms2 = millis();
+        if (millis() > prev_ms2 + 100) {
+            print2_roll_pitch_yaw();
+            prev_ms2 = millis();
+        }
+    }
 }
 
 void print_roll_pitch_yaw() {

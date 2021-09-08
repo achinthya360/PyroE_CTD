@@ -4,7 +4,7 @@
 #include "RTClib.h"
 
 // library for sleep mode
-//#include <ArduinoLowPower.h>
+#include <ArduinoLowPower.h>
 
 //serial peripheral interface and library for SD card reader
 #include <SPI.h> //serial peripheral interface for SD card reader
