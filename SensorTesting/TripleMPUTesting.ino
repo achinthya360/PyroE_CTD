@@ -6,6 +6,7 @@
 // motor end is mpu 2 (SD2/SC2)
 
 #define TCAADDR 0x70
+#define LED 13
 
 // Teensy 3.5 & 3.6 & 4.1 on-board: BUILTIN_SDCARD
 const int chipSelect = BUILTIN_SDCARD;
@@ -20,11 +21,14 @@ float t, yaw, pitch, roll, accx, accy, accz;
 char data[70];
 
 void setup() {
+  pinMode(LED, OUTPUT);
+  digitalWrite(LED, HIGH);
   Serial.begin(9600);
-  Wire.begin();
   Wire1.begin();
   delay(2000);
+  Wire.begin();
 
+  digitalWrite(LED, LOW);
   Serial.println("Beginning SD Card");
   while (!SD.begin(chipSelect));
   updateFilename();
@@ -63,9 +67,11 @@ void setup() {
   mpu3.calibrateAccelGyro();
 
   Serial.println("Beginning Data Collection");
+  digitalWrite(LED, HIGH);
 }
 
 void loop() {
+  digitalWrite(LED, !digitalRead(LED));
   // open the file.
   dataFile = SD.open(filename, FILE_WRITE);
   
