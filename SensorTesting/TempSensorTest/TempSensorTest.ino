@@ -53,35 +53,35 @@ void loop()
     sensors.requestTemperaturesByIndex(1);  // request temp sensor B start mesuring so it can be read on the following loop (if enough time elapses).
     tempBDelayStartTime = millis();  // mark when we made the request to make sure we wait long enough before reading it.
   }
-  if (millis() - tempCDelayStartTime > requiredMesurementDelay) { // wait for conversion to happen before attempting to read temp probe B's value;
-    tempC = get_temp_c_by_index(2);
-    sensors.requestTemperaturesByIndex(2);  // request temp sensor C start mesuring so it can be read on the following loop (if enough time elapses).
-    tempCDelayStartTime = millis();  // mark when we made the request to make sure we wait long enough before reading it.
-  }
-  if (millis() - tempDDelayStartTime > requiredMesurementDelay) { // wait for conversion to happen before attempting to read temp probe B's value;
-    tempD = get_temp_c_by_index(3);
-    sensors.requestTemperaturesByIndex(3);  // request temp sensor D start mesuring so it can be read on the following loop (if enough time elapses).
-    tempDDelayStartTime = millis();  // mark when we made the request to make sure we wait long enough before reading it.
-  }
-  if (millis() - tempEDelayStartTime > requiredMesurementDelay) { // wait for conversion to happen before attempting to read temp probe B's value;
-    tempE = get_temp_c_by_index(4);
-    sensors.requestTemperaturesByIndex(4);  // request temp sensor E start mesuring so it can be read on the following loop (if enough time elapses).
-    tempEDelayStartTime = millis();  // mark when we made the request to make sure we wait long enough before reading it.
-  }
+//  if (millis() - tempCDelayStartTime > requiredMesurementDelay) { // wait for conversion to happen before attempting to read temp probe B's value;
+//    tempC = get_temp_c_by_index(2);
+//    sensors.requestTemperaturesByIndex(2);  // request temp sensor C start mesuring so it can be read on the following loop (if enough time elapses).
+//    tempCDelayStartTime = millis();  // mark when we made the request to make sure we wait long enough before reading it.
+//  }
+//  if (millis() - tempDDelayStartTime > requiredMesurementDelay) { // wait for conversion to happen before attempting to read temp probe B's value;
+//    tempD = get_temp_c_by_index(3);
+//    sensors.requestTemperaturesByIndex(3);  // request temp sensor D start mesuring so it can be read on the following loop (if enough time elapses).
+//    tempDDelayStartTime = millis();  // mark when we made the request to make sure we wait long enough before reading it.
+//  }
+//  if (millis() - tempEDelayStartTime > requiredMesurementDelay) { // wait for conversion to happen before attempting to read temp probe B's value;
+//    tempE = get_temp_c_by_index(4);
+//    sensors.requestTemperaturesByIndex(4);  // request temp sensor E start mesuring so it can be read on the following loop (if enough time elapses).
+//    tempEDelayStartTime = millis();  // mark when we made the request to make sure we wait long enough before reading it.
+//  }
 
   Serial.print(tempA);
   Serial.print(" ");
   Serial.print(tempB);
   Serial.print(" ");
-  Serial.print(tempC);
-  Serial.print(" ");
-  Serial.print(tempD);
-  Serial.print(" ");
-  Serial.print(tempE);
-  Serial.print(" ");
+//  Serial.print(tempC);
+//  Serial.print(" ");
+//  Serial.print(tempD);
+//  Serial.print(" ");
+//  Serial.print(tempE);
+//  Serial.print(" ");
   Serial.println(millis());
 
-  delay(100);
+  delay(5000);
 }
 
 float get_temp_c_by_index(int sensor_index) {
