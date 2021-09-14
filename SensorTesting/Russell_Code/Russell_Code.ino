@@ -7,6 +7,13 @@ void setup() {
     Wire.begin();
     delay(2000);
 
+    pinMode(6, OUTPUT);
+    pinMode(3, OUTPUT);
+    pinMode(2, OUTPUT);
+    digitalWrite(6, LOW);
+    digitalWrite(3, HIGH);
+    digitalWrite(2, HIGH);
+
     if (!mpu.setup(0x68)) {  // change to your own address
         while (1) {
             Serial.println("MPU connection failed. Please check your connection with `connection_check` example.");
@@ -14,6 +21,9 @@ void setup() {
         }
     }
 
+    digitalWrite(6, HIGH);
+    digitalWrite(3, LOW);
+    digitalWrite(2, LOW);
     if (!mpu2.setup(0x69)) {  // change to your own address
         while (1) {
             Serial.println("MPU connection failed. Please check your connection with `connection_check` example.");
@@ -23,6 +33,9 @@ void setup() {
 }
 
 void loop() {
+    digitalWrite(6, LOW);
+    digitalWrite(3, HIGH);
+    digitalWrite(2, HIGH);
     if (mpu.update()) {
         static uint32_t prev_ms = millis();
         if (millis() > prev_ms + 100) {
@@ -30,6 +43,10 @@ void loop() {
             prev_ms = millis();
         }
     }
+
+    digitalWrite(6, HIGH);
+    digitalWrite(3, LOW);
+    digitalWrite(2, LOW);
 
     if (mpu2.update()) {
         static uint32_t prev_ms2 = millis();

@@ -2,14 +2,26 @@
 #include <SD.h>
 #include <SPI.h>
 
+//// need for formatted string printing
+//#include <PrintEx.h>
+//PrintEx myPrint = Serial;
+
 // tail end is mpu (SD0/SC0)
 // motor end is mpu 2 (SD2/SC2)
 
-#define TCAADDR 0x70
-#define LED 13
+// AD0 connections:
+// D2: mpu 2
+// D3: mpu 1
+// D6: mpu
+
+//#define TCAADDR 0x70
+#define LED LED_BUILTIN
+#define AD0_0 6
+#define AD0_1 3
+#define AD0_2 2
 
 // Teensy 3.5 & 3.6 & 4.1 on-board: BUILTIN_SDCARD
-const int chipSelect = BUILTIN_SDCARD;
+const int chipSelect = 10;
 MPU9250 mpu, mpu2, mpu3;
 
 // SD card log file variables
@@ -17,14 +29,18 @@ char filename[12];
 File dataFile;
 
 // variables for storing mpu data for quicker logging
-float t, yaw, pitch, roll, accx, accy, accz;
+unsigned long t;
+float yaw, pitch, roll, accx, accy, accz;
 char data[70];
 
 void setup() {
+  pinMode(AD0_0, OUTPUT);
+  pinMode(AD0_1, OUTPUT);
+  pinMode(AD0_2, OUTPUT);
   pinMode(LED, OUTPUT);
   digitalWrite(LED, HIGH);
-  Serial.begin(9600);
-  Wire1.begin();
+  Serial.begin(115200);
+  //  Wire1.begin();
   delay(2000);
   Wire.begin();
 
@@ -35,18 +51,20 @@ void setup() {
 
   Serial.println("Beginning Calibration");
 
-  //  tcaselect(0);
+  digitalWrite(LED, HIGH);
+  mpuselect(0);
+  Serial.println("MPU 1 selected!");
 
-  if (!mpu.setup(0x69)) {  // change to your own address
-    while (!mpu.setup(0x69)) {
+  if (!mpu.setup(0x68)) {  // change to your own address
+    while (!mpu.setup(0x68)) {
       Serial.println("MPU 1 connection failed. Please check your connection with `connection_check` example.");
       delay(5000);
     }
   }
-
+  Serial.println("MPU 1 connected, calibrating...");
   mpu.calibrateAccelGyro();
 
-  //  tcaselect(1);
+  mpuselect(1);
   if (!mpu2.setup(0x68)) {  // change to your own address
     while (!mpu2.setup(0x68)) {
       Serial.println("MPU 2 connection failed. Please check your connection with `connection_check` example.");
@@ -55,62 +73,64 @@ void setup() {
   }
 
   mpu2.calibrateAccelGyro();
-
-  //  tcaselect(2);
-  if (!mpu3.setup(0x68, MPU9250Setting(), Wire1)) {  // change to your own address
-    while (!mpu3.setup(0x68, MPU9250Setting(), Wire1)) {
-      Serial.println("MPU 3 connection failed. Please check your connection with `connection_check` example.");
-      delay(5000);
-    }
-  }
-
-  mpu3.calibrateAccelGyro();
+  //
+  //  mpuselect(2);
+  //  if (!mpu3.setup(0x68)) {  // change to your own address
+  //    while (!mpu3.setup(0x68)) {
+  //      Serial.println("MPU 3 connection failed. Please check your connection with `connection_check` example.");
+  //      delay(5000);
+  //    }
+  //  }
+  //
+  //  mpu3.calibrateAccelGyro();
 
   Serial.println("Beginning Data Collection");
   digitalWrite(LED, HIGH);
+  //  dataFile = SD.open(filename, FILE_WRITE);
+
 }
 
 void loop() {
   digitalWrite(LED, !digitalRead(LED));
   // open the file.
   dataFile = SD.open(filename, FILE_WRITE);
-  
-  //  tcaselect(0);
+
+  mpuselect(0);
   if (mpu.update()) {
     static uint32_t prev_ms = millis();
-    if (millis() > prev_ms) { // Russell had prev_ms + 100 to buffer the update (probably for decreased power consumption
+    if (millis() > prev_ms + 100) { // Russell had prev_ms + 100 to buffer the update (probably for decreased power consumption
       print_roll_pitch_yaw();
       prev_ms = millis();
     }
   }
 
-  //  tcaselect(1);
+  mpuselect(1);
   if (mpu2.update()) {
     static uint32_t prev_ms2 = millis();
-    if (millis() > prev_ms2) {
+    if (millis() > prev_ms2 + 100) {
       print2_roll_pitch_yaw();
       prev_ms2 = millis();
     }
   }
-
-  //  tcaselect(2);
-  if (mpu3.update()) {
-    static uint32_t prev_ms2 = millis();
-    if (millis() > prev_ms2) {
-      print3_roll_pitch_yaw();
-      prev_ms2 = millis();
-    }
-  }
+  //
+  //  mpuselect(2);
+  //  if (mpu3.update()) {
+  //    static uint32_t prev_ms3 = millis();
+  //    if (millis() > prev_ms3+100) {
+  //      print3_roll_pitch_yaw();
+  //      prev_ms3 = millis();
+  //    }
+  //  }
 
   // if the file is available, write to it:
   if (dataFile) {
-//    dataFile.println(dataString);
+    //    //    dataFile.println(dataString);
     dataFile.close();
-    // print to the serial port too:
-        Serial.println("Data logged to SD card");
+    //    // print to the serial port too:
+    //    Serial.println("Data logged to SD card");
   } else {
-    // if the file isn't open, pop up an error:
-        Serial.println("error opening datalog.txt");
+    //    // if the file isn't open, pop up an error:
+    //    Serial.println("error opening datalog.txt");
   }
 }
 
@@ -122,9 +142,37 @@ void print_roll_pitch_yaw() {
   accx = mpu.getAccX();
   accy = mpu.getAccY();
   accz = mpu.getAccZ();
-  sprintf(data, "1, %.0f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f", t, yaw, pitch, roll, accx, accy, accz);
-  Serial.print(data);
-  dataFile.print(data);
+  Serial.print("1, ");
+  Serial.print(t);
+  Serial.print(", ");
+  Serial.print(yaw);
+  Serial.print(", ");
+  Serial.print(pitch);
+  Serial.print(", ");
+  Serial.print(roll);
+  Serial.print(", ");
+  Serial.print(accx);
+  Serial.print(", ");
+  Serial.print(accy);
+  Serial.print(", ");
+  Serial.print(accz);
+  //  printf(data, "1, %d, %f, %f, %f, %f, %f, %f", t, yaw, pitch, roll, accx, accy, accz);
+  //  Serial.print(data);
+  //  dataFile.print(data);
+  dataFile.print("1, ");
+  dataFile.print(t);
+  dataFile.print(", ");
+  dataFile.print(yaw);
+  dataFile.print(", ");
+  dataFile.print(pitch);
+  dataFile.print(", ");
+  dataFile.print(roll);
+  dataFile.print(", ");
+  dataFile.print(accx);
+  dataFile.print(", ");
+  dataFile.print(accy);
+  dataFile.print(", ");
+  dataFile.print(accz);
 }
 
 void print2_roll_pitch_yaw() {
@@ -135,9 +183,37 @@ void print2_roll_pitch_yaw() {
   accx = mpu2.getAccX();
   accy = mpu2.getAccY();
   accz = mpu2.getAccZ();
-  sprintf(data, ", 2, %.0f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f", t, yaw, pitch, roll, accx, accy, accz);
-  Serial.print(data);
-  dataFile.print(data);
+  Serial.print(", 2, ");
+  Serial.print(t);
+  Serial.print(", ");
+  Serial.print(yaw);
+  Serial.print(", ");
+  Serial.print(pitch);
+  Serial.print(", ");
+  Serial.print(roll);
+  Serial.print(", ");
+  Serial.print(accx);
+  Serial.print(", ");
+  Serial.print(accy);
+  Serial.print(", ");
+  Serial.println(accz);
+  //  sprintf(data, ", 2, %.0f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f", t, yaw, pitch, roll, accx, accy, accz);
+  //  Serial.print(data);
+  //  dataFile.print(data);
+  dataFile.print(", 2, ");
+  dataFile.print(t);
+  dataFile.print(", ");
+  dataFile.print(yaw);
+  dataFile.print(", ");
+  dataFile.print(pitch);
+  dataFile.print(", ");
+  dataFile.print(roll);
+  dataFile.print(", ");
+  dataFile.print(accx);
+  dataFile.print(", ");
+  dataFile.print(accy);
+  dataFile.print(", ");
+  dataFile.println(accz);
 }
 
 void print3_roll_pitch_yaw() {
@@ -148,9 +224,37 @@ void print3_roll_pitch_yaw() {
   accx = mpu3.getAccX();
   accy = mpu3.getAccY();
   accz = mpu3.getAccZ();
-  sprintf(data, ", 3, %.0f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f", t, yaw, pitch, roll, accx, accy, accz);
-  Serial.println(data);
-  dataFile.println(data);
+  Serial.print(", 3, ");
+  Serial.print(t);
+  Serial.print(", ");
+  Serial.print(yaw);
+  Serial.print(", ");
+  Serial.print(pitch);
+  Serial.print(", ");
+  Serial.print(roll);
+  Serial.print(", ");
+  Serial.print(accx);
+  Serial.print(", ");
+  Serial.print(accy);
+  Serial.print(", ");
+  Serial.println(accz);
+//  sprintf(data, ", 3, %.0f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f", t, yaw, pitch, roll, accx, accy, accz);
+//  Serial.println(data);
+//  dataFile.println(data);
+  dataFile.print(", 3, ");
+  dataFile.print(t);
+  dataFile.print(", ");
+  dataFile.print(yaw);
+  dataFile.print(", ");
+  dataFile.print(pitch);
+  dataFile.print(", ");
+  dataFile.print(roll);
+  dataFile.print(", ");
+  dataFile.print(accx);
+  dataFile.print(", ");
+  dataFile.print(accy);
+  dataFile.print(", ");
+  dataFile.println(accz);
 }
 
 void updateFilename() {
@@ -168,6 +272,32 @@ void updateFilename() {
     filename[namelength - 6] = '0' + (i / 10) - (hundreds * 10);
     filename[namelength - 5] = '0' + i % 10;
     i++;
+
+  }
+}
+
+void mpuselect(int i) { // sets AD0 pins LOW or HIGH to select desired MPU
+  switch (i) {
+    case 0:
+      digitalWrite(AD0_0, LOW);
+      digitalWrite(AD0_1, HIGH);
+      digitalWrite(AD0_2, HIGH);
+      break;
+    case 1:
+      digitalWrite(AD0_0, HIGH);
+      digitalWrite(AD0_1, LOW);
+      digitalWrite(AD0_2, HIGH);
+      break;
+    case 2:
+      digitalWrite(AD0_0, HIGH);
+      digitalWrite(AD0_1, HIGH);
+      digitalWrite(AD0_2, LOW);
+      break;
+    default:
+      digitalWrite(AD0_0, LOW);
+      digitalWrite(AD0_1, HIGH);
+      digitalWrite(AD0_2, HIGH);
+      break;
 
   }
 }
