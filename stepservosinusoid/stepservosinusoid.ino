@@ -12,10 +12,10 @@
 const float max_speed = 5000; // maximum possible ~ 5000
 
 float microsteps = 800; // from driver
-float theta_max = 70; // degrees
+float theta_max = 30; // degrees
 long amplitude = microsteps/360*theta_max; // microsteps needed to reach wanted angle
 //float accel = 90000;  // maximum possible ~ 85000
-float freq_wanted = 0.4;
+float freq_wanted = 1;
 
 // theoretical calculations assume constant linear stepping acceleration
 //float freq = 3.35 * sqrt(accel/(theta_max * microsteps)); // could be used to back calculate accel

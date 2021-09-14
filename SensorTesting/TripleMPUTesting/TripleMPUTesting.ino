@@ -21,6 +21,7 @@
 #define AD0_2 2
 
 // Teensy 3.5 & 3.6 & 4.1 on-board: BUILTIN_SDCARD
+// Arduino Nano Every: 10
 const int chipSelect = 10;
 MPU9250 mpu, mpu2, mpu3;
 
@@ -73,32 +74,39 @@ void setup() {
   }
 
   mpu2.calibrateAccelGyro();
-  //
-  //  mpuselect(2);
-  //  if (!mpu3.setup(0x68)) {  // change to your own address
-  //    while (!mpu3.setup(0x68)) {
-  //      Serial.println("MPU 3 connection failed. Please check your connection with `connection_check` example.");
-  //      delay(5000);
-  //    }
-  //  }
-  //
-  //  mpu3.calibrateAccelGyro();
+  
+    mpuselect(2);
+    if (!mpu3.setup(0x68)) {  // change to your own address
+      while (!mpu3.setup(0x68)) {
+        Serial.println("MPU 3 connection failed. Please check your connection with `connection_check` example.");
+        delay(5000);
+      }
+    }
+  
+    mpu3.calibrateAccelGyro();
 
   Serial.println("Beginning Data Collection");
   digitalWrite(LED, HIGH);
-  //  dataFile = SD.open(filename, FILE_WRITE);
+  //    dataFile = SD.open(filename, FILE_WRITE);
 
 }
 
 void loop() {
-  digitalWrite(LED, !digitalRead(LED));
   // open the file.
   dataFile = SD.open(filename, FILE_WRITE);
+
+  mpuselect(1);
+  if (mpu2.update()) {
+    
+  }
+
+  // flick status LED
+  digitalWrite(LED, !digitalRead(LED));
 
   mpuselect(0);
   if (mpu.update()) {
     static uint32_t prev_ms = millis();
-    if (millis() > prev_ms + 100) { // Russell had prev_ms + 100 to buffer the update (probably for decreased power consumption
+    if (millis() > prev_ms) { // Russell had prev_ms + 100 to buffer the update (probably for decreased power consumption)
       print_roll_pitch_yaw();
       prev_ms = millis();
     }
@@ -107,25 +115,25 @@ void loop() {
   mpuselect(1);
   if (mpu2.update()) {
     static uint32_t prev_ms2 = millis();
-    if (millis() > prev_ms2 + 100) {
+    if (millis() > prev_ms2) {
       print2_roll_pitch_yaw();
       prev_ms2 = millis();
     }
   }
-  //
-  //  mpuselect(2);
-  //  if (mpu3.update()) {
-  //    static uint32_t prev_ms3 = millis();
-  //    if (millis() > prev_ms3+100) {
-  //      print3_roll_pitch_yaw();
-  //      prev_ms3 = millis();
-  //    }
-  //  }
+  
+    mpuselect(2);
+    if (mpu3.update()) {
+      static uint32_t prev_ms3 = millis();
+      if (millis() > prev_ms3) {
+        print3_roll_pitch_yaw();
+        prev_ms3 = millis();
+      }
+    }
 
   // if the file is available, write to it:
   if (dataFile) {
     //    //    dataFile.println(dataString);
-    dataFile.close();
+        dataFile.close();
     //    // print to the serial port too:
     //    Serial.println("Data logged to SD card");
   } else {
@@ -196,7 +204,7 @@ void print2_roll_pitch_yaw() {
   Serial.print(", ");
   Serial.print(accy);
   Serial.print(", ");
-  Serial.println(accz);
+  Serial.print(accz);
   //  sprintf(data, ", 2, %.0f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f", t, yaw, pitch, roll, accx, accy, accz);
   //  Serial.print(data);
   //  dataFile.print(data);
@@ -213,7 +221,7 @@ void print2_roll_pitch_yaw() {
   dataFile.print(", ");
   dataFile.print(accy);
   dataFile.print(", ");
-  dataFile.println(accz);
+  dataFile.print(accz);
 }
 
 void print3_roll_pitch_yaw() {
@@ -238,9 +246,9 @@ void print3_roll_pitch_yaw() {
   Serial.print(accy);
   Serial.print(", ");
   Serial.println(accz);
-//  sprintf(data, ", 3, %.0f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f", t, yaw, pitch, roll, accx, accy, accz);
-//  Serial.println(data);
-//  dataFile.println(data);
+  //  sprintf(data, ", 3, %.0f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f", t, yaw, pitch, roll, accx, accy, accz);
+  //  Serial.println(data);
+  //  dataFile.println(data);
   dataFile.print(", 3, ");
   dataFile.print(t);
   dataFile.print(", ");
