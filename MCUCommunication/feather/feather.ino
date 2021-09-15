@@ -1,3 +1,9 @@
+// Modify desired parameters here
+#define EC_SAMPLING_FREQUENCY 1 // Set the requested sampling frequency of the conductivity probe in seconds (NO Decimals) (this by extension sets the overall frequency of logging).
+#define CYCLES_BEFORE_SLEEP 20 // Set the number of measurements taken before data logger goes to sleep (integer values ONLY)
+
+
+
 // Date and time functions using a DS3231 RTC connected via I2C and Wire lib
 // RTC comes from Featherwing attachment
 #include <Wire.h>
@@ -49,8 +55,6 @@ char *EC; // Character pointer for string parsing.
 byte received_from_sensor = 0; // How many characters have been received.
 byte string_received = 0; // Whether it received a string from the EC circuit.
 
-#define EC_SAMPLING_FREQUENCY 1 // Set the requested sampling frequency of the conductivity probe in seconds (NO Decimals) (this by extension sets the overall frequency of logging).
-
 /* This integer specifies how high resolution you want your temperature sensors to be.
    Ok values: 9,10,11,12 (Higher = more accuracy but slower sampling frequency**)
  * ** There is no reason not to use the highest accuracy. This is because the datalogging rate is set by the
@@ -60,19 +64,18 @@ byte string_received = 0; // Whether it received a string from the EC circuit.
 //Declare global temperature variables.
 float tempA;
 float tempB;
-float tempC;
-float tempD;
-float tempE;
 int tempADelayStartTime; // Define a variable to mark when we requested a temperature measurement from A so we can wait the required delay before reading the value.
 int tempBDelayStartTime; // Define a variable to mark when we requested a temperature measurement from B so we can wait the required delay before reading the value.
-int tempCDelayStartTime; // Define a variable to mark when we requested a temperature measurement from C so we can wait the required delay before reading the value.
-//int tempDDelayStartTime; // Define a variable to mark when we requested a temperature measurement from D so we can wait the required delay before reading the value.
-//int tempEDelayStartTime; // Define a variable to mark when we requested a temperature measurement from E so we can wait the required delay before reading the value.
 int requiredmeasurementDelay = sensors.millisToWaitForConversion(TEMP_SENSOR_RESOLUTION);
 
 // use a variable to store the number of measurements taken by sensors on each wakeup
 int measurements = 0;
 
+// keep track of current CTD mode
+#define LOG 0
+#define TRANSMIT 1
+#define SLEEP 2
+int mode = 0;
 
 void setup()
 {
@@ -81,15 +84,17 @@ void setup()
   while (!Serial && millis() < 20000); //for Leonardo/Micro/Zero - Wait for a computer to connect via serial or until a 20 second timeout has elapsed (This works because millis() starts counting the mlliseconds since the board turns on)
 #endif
 
+  // prints to PC
   Serial.begin(9600);
+  // Serial 1 is Feather M0's Hardware UART (Tx/Rx pins)
   Serial1.begin(9600);
+
+  // status LED for debugging
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, HIGH);
 
   //Initialize SD card reader
   Serial.print("Initializing SD card...");
-//  digitalWrite(LED_BUILTIN, HIGH);
-
   while (!SD.begin(chipSelect)) {
 
     Serial.println("Card failed, or not present");
@@ -102,14 +107,12 @@ void setup()
   SdFile::dateTimeCallback(SDCardDateTimeCallback);
 
   Serial.println("card initialized.");
-
+  // Wait for SD card functions to terminate before continuing
   delay(1000);
 
   if (! rtc.begin()) {
 
     Serial.println("Couldn't find RTC");
-    //    while (1); // might have to comment out while RTC is still unavailable
-
   }
 
   get_numbered_filename(datalogFileName, "LOG", "CSV");
@@ -152,9 +155,6 @@ void setup()
   sensors.requestTemperatures(); // on the first pass request all temperatures in a blocking way to start the variables with true data.
   tempA = get_temp_c_by_index(0);
   tempB = get_temp_c_by_index(1);
-  tempC = get_temp_c_by_index(2);
-  //  tempD = get_temp_c_by_index(3);
-  //  tempE = get_temp_c_by_index(4);
 
   sensors.setWaitForConversion(false);  // Now tell the Dallas Temperature library to not block this script while it's waiting for the temperature measurement to happen
 
@@ -185,21 +185,78 @@ void setup()
   Serial.println("--- Starting Datalogging ---");
   Serial.println(millis());
 
-  // setup interrupt pin
-  pinMode(int_pin, INPUT_PULLUP);
-  // set interrupt pin as wakeup pin
-//  LowPower.attachInterruptWakeup(int_pin, turn_on, CHANGE);
-
-  // delay to wait for all set up to complete
-  //  Serial.print("Interrupt set on pin: ");
-  //  Serial.println(int_pin);
+  // turn off status LED to signify end of setup sequence
+  digitalWrite(LED_BUILTIN, LOW);
 }
 
 void loop()
 {
-  // turn LED on to show Feather is awake
-  //  digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+  //   uncomment when debugging to flash LED to show that loop function is running
+  //      digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
 
+  //   first read UART port from head MCU to set mode or direct commands
+  String head_transmission = "";
+  while (Serial.available()) {
+    head_transmission += Serial.read();
+  }
+  
+  // determine next step based on input from head
+  switch(head_transmission.size()){
+    // if empty string, continue with same mode as before
+    case 0:
+    break;
+    case 1:
+      // if one character long, figure out command
+      switch(head_transmission){
+        case "P":
+        break;
+        case "L":
+        break;
+        case "D"
+        break;
+      }
+     break;
+     // if string longer than one character, ignore and continue with same mode as before
+     default:
+     break;
+  }
+  
+  //   if in COLLECT mode, log a set of data
+  if (mode == LOG) {
+    log_data();
+
+    // keep track of # of measurements taken before progressing into sleep mode
+    measurements++;
+    if (measurements > CYCLES_BEFORE_SLEEP) {
+      //      Feather falls asleep after desired number of sensor measurements
+      Serial.println("Sleeping now");
+
+      //      tell MCU that the CTD is done sampling so head can shut down power (EN to GND)
+      Serial1.write("o");
+
+      //      uncomment when debugging to emulate sleep with status LED turning off
+      //      digitalWrite(LED_BUILTIN, LOW);
+      mode = SLEEP;
+      LowPower.sleep();
+    }
+  }
+  // else if in TRANSMIT mode, transmit data to head MCU
+  else if (mode == TRANSMIT) {
+    // read SD card data
+    char sd_data[100];
+    // TODO: INSERT SD CARD READ FUNCTION WITH FILE SELECT FROM TRIPLE MPU DATA FILE READER CODE!!!
+
+    // write SD card data to head
+    Serial1.write("");
+
+
+
+  }
+
+}
+
+
+void log_data() {
   //Read electrical conductivity sensor
   if (ecSerial.available() > 0) {
 
@@ -212,7 +269,7 @@ void loop()
 
     }
 
-    // Read the temperature sensors.
+    // Read the two temperature sensors.
     if (millis() - tempADelayStartTime > requiredmeasurementDelay) { // wait for conversion to happen before attempting to read temp probe A's value;
       tempA = get_temp_c_by_index(0);
       sensors.requestTemperaturesByIndex(0);  // request temp sensor A start mesuring so it can be read on the following loop (if enough time elapses).
@@ -223,21 +280,6 @@ void loop()
       sensors.requestTemperaturesByIndex(1);  // request temp sensor B start mesuring so it can be read on the following loop (if enough time elapses).
       tempBDelayStartTime = millis();  // mark when we made the request to make sure we wait long enough before reading it.
     }
-    if (millis() - tempCDelayStartTime > requiredmeasurementDelay) { // wait for conversion to happen before attempting to read temp probe B's value;
-      tempC = get_temp_c_by_index(2);
-      sensors.requestTemperaturesByIndex(2);  // request temp sensor C start mesuring so it can be read on the following loop (if enough time elapses).
-      tempCDelayStartTime = millis();  // mark when we made the request to make sure we wait long enough before reading it.
-    }
-    //    if (millis() - tempDDelayStartTime > requiredmeasurementDelay) { // wait for conversion to happen before attempting to read temp probe B's value;
-    //      tempD = get_temp_c_by_index(3);
-    //      sensors.requestTemperaturesByIndex(3);  // request temp sensor D start mesuring so it can be read on the following loop (if enough time elapses).
-    //      tempDDelayStartTime = millis();  // mark when we made the request to make sure we wait long enough before reading it.
-    //    }
-    //    if (millis() - tempEDelayStartTime > requiredmeasurementDelay) { // wait for conversion to happen before attempting to read temp probe B's value;
-    //      tempE = get_temp_c_by_index(4);
-    //      sensors.requestTemperaturesByIndex(4);  // request temp sensor E start mesuring so it can be read on the following loop (if enough time elapses).
-    //      tempEDelayStartTime = millis();  // mark when we made the request to make sure we wait long enough before reading it.
-    //    }
 
     sensor.readSensor(); //read pressure sensor
     pressure_abs = sensor.pressure();
@@ -248,19 +290,13 @@ void loop()
 
     //output readings to serial
     Serial.print(dateTimeString);
-    Serial.print(",");
+    Serial.print(", ");
     Serial.print(pressure_abs);
-    Serial.print(",");
+    Serial.print(", ");
     Serial.print(tempA);
-    Serial.print(",");
+    Serial.print(", ");
     Serial.print(tempB);
-    Serial.print(",");
-    Serial.print(tempC);
-    Serial.print(",");
-    //    Serial.print(tempD);
-    //    Serial.print(",");
-    //    Serial.print(tempE);
-    //    Serial.print(",");
+    Serial.print(", ");
     Serial.print(EC);
     Serial.print(", ");
     Serial.print(measurements);
@@ -278,26 +314,15 @@ void loop()
       dataFile.print(",");
       dataFile.print(tempB);
       dataFile.print(",");
-      dataFile.print(tempC);
-      dataFile.print(",");
       dataFile.println(EC);
       dataFile.close();
 
     }
-
-
-    // Tip: For a slower overall logging frequency, set the EC_SAMPLING_FREQUENCY variable rather than adding a delay (this will avoid the possibility of garbled ec sensor readings)
-
-    measurements++;
-        if (measurements > 20) {
-          // Feather falls asleep after 100 sensor measurements
-          Serial.println("Sleeping now");
-          Serial1.write("o");
-          digitalWrite(LED_BUILTIN, LOW);
-          LowPower.sleep();
-        }
   }
 }
+
+
+// peripheral functions from OpenCTD code for datalogging, data reading
 
 float get_temp_c_by_index(int sensor_index) {
 
@@ -307,14 +332,6 @@ float get_temp_c_by_index(int sensor_index) {
   } else {
     return value; // otherwise return the measured value.
   }
-}
-
-// function run on every interrupt wakeup
-// TODO: Serial does not turn on when MCU turns back on
-void turn_on() {
-  measurements = 0;
-  digitalWrite(LED_BUILTIN, HIGH);
-  Serial.println("Turned back on");
 }
 
 void parse_data() { // Parses data from the EC Circuit.
