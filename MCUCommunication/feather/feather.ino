@@ -1,6 +1,6 @@
 // Modify desired parameters here
 #define EC_SAMPLING_FREQUENCY 1 // Set the requested sampling frequency of the conductivity probe in seconds (NO Decimals) (this by extension sets the overall frequency of logging).
-#define CYCLES_BEFORE_SLEEP 20 // Set the number of measurements taken before data logger goes to sleep (integer values ONLY)
+#define CYCLES_BEFORE_SLEEP 10 // Set the number of measurements taken before data logger goes to sleep (integer values ONLY)
 
 
 
@@ -75,7 +75,7 @@ int measurements = 0;
 #define LOG 0
 #define TRANSMIT 1
 #define SLEEP 2
-int mode = 0;
+int mode = LOG;
 
 void setup()
 {
@@ -88,10 +88,12 @@ void setup()
   Serial.begin(9600);
   // Serial 1 is Feather M0's Hardware UART (Tx/Rx pins)
   Serial1.begin(9600);
+  // Let head know CTD turned ON
+  Serial1.write('-');  // - (ON) o (OFF) just like in switches
 
   // status LED for debugging
-  pinMode(LED_BUILTIN, OUTPUT);
-  digitalWrite(LED_BUILTIN, HIGH);
+  //  pinMode(LED_BUILTIN, OUTPUT);
+  //  digitalWrite(LED_BUILTIN, HIGH);
 
   //Initialize SD card reader
   Serial.print("Initializing SD card...");
@@ -124,8 +126,8 @@ void setup()
 
   if (dataFile) {
     Serial.println("====================================================");
-    Serial.println("Date Time,Pressure,Temp A,Temp B,Temp C,Conductivity");
-    dataFile.println("Date Time,Pressure,Temp A,Temp B,Temp C,Conductivity");
+    Serial.println("Date Time,Pressure,Temp A,Temp B,Conductivity");
+    dataFile.println("Date Time,Pressure,Temp A,Temp B,Conductivity");
     dataFile.close();
     Serial.println("====================================================");
     Serial.println("Datalogging done");
@@ -179,14 +181,19 @@ void setup()
   ecSerial.print(EC_SAMPLING_FREQUENCY);    // ... every x seconds (here x is the EC_SAMPLING_FREQUENCY variable)
   ecSerial.write('\r'); // Finish the command with the carrage return character.
 
-  received_from_sensor = ecSerial.readBytesUntil('\r', EC_data, 10); // keep reading the reply until the return character is recived (or it gets to be 10 characters long, which shouldn't happen)
+  received_from_sensor = ecSerial.readBytesUntil('\r', EC_data, 10); // keep reading the reply until the return character is received (or it gets to be 10 characters long, which shouldn't happen)
   EC_data[received_from_sensor] = 0; // Null terminate the data by setting the value after the final character to 0.
   Serial.print("EC Frequency Set Sucessfully? -> "); Serial.println(EC_data);
   Serial.println("--- Starting Datalogging ---");
   Serial.println(millis());
 
+  // reset number of measurements taken
+  measurements = 0;
+  // enter logging mode upon restart
+  mode = LOG;
+
   // turn off status LED to signify end of setup sequence
-  digitalWrite(LED_BUILTIN, LOW);
+  //  digitalWrite(LED_BUILTIN, LOW);
 }
 
 void loop()
@@ -196,37 +203,37 @@ void loop()
 
   //   first read UART port from head MCU to set mode or direct commands
   String head_transmission = "";
-  while (Serial.available()) {
-    head_transmission += Serial.read();
+  while (Serial1.available()) {
+    head_transmission += Serial1.read();
   }
-  
+
   // determine next step based on input from head
-  switch(head_transmission.size()){
+  switch (head_transmission.length()) {
     // if empty string, continue with same mode as before
     case 0:
-    break;
+      break;
     case 1:
       // if one character long, figure out command
-      switch(head_transmission){
-        case "P":
-        break;
-        case "L":
-        break;
-        case "D"
-        break;
+      if (head_transmission == "L") {  // L command lists all files on SD card
+        printDirectory(SD.open("/"), 0);
       }
-     break;
-     // if string longer than one character, ignore and continue with same mode as before
-     default:
-     break;
+      else if (head_transmission == "T") { // T command switches to TRANSMIT mode
+        mode = TRANSMIT;
+      }
+      break;
+    // if string longer than one character, ignore and continue with same mode as before
+    default:
+      break;
   }
-  
-  //   if in COLLECT mode, log a set of data
-  if (mode == LOG) {
-    log_data();
 
-    // keep track of # of measurements taken before progressing into sleep mode
-    measurements++;
+  //   if in LOG mode, log a set of data
+  if (mode == LOG) {
+    if (ecSerial.available()) {
+      log_data();
+      // keep track of # of measurements taken before progressing into sleep mode
+      measurements++;
+    }
+    // sleep if taken 10 measurements
     if (measurements > CYCLES_BEFORE_SLEEP) {
       //      Feather falls asleep after desired number of sensor measurements
       Serial.println("Sleeping now");
@@ -237,7 +244,16 @@ void loop()
       //      uncomment when debugging to emulate sleep with status LED turning off
       //      digitalWrite(LED_BUILTIN, LOW);
       mode = SLEEP;
-      LowPower.sleep();
+      // EC sensor doesn't actually sleep even though the following code should technically make it sleep
+      char sleepy[6] = {'S', 'l', 'e', 'e', 'p', '\r'};
+      for (int i = 0; i < 6; i++) {
+        ecSerial.write(sleepy[i]);
+      }
+      Serial.println("Told conductivity sensor to sleep.");
+      delay(1000);
+
+      // set entire Feather to sleep (does not turn off 3.3V power rail)
+      LowPower.deepSleep();
     }
   }
   // else if in TRANSMIT mode, transmit data to head MCU
@@ -258,66 +274,64 @@ void loop()
 
 void log_data() {
   //Read electrical conductivity sensor
-  if (ecSerial.available() > 0) {
 
-    received_from_sensor = ecSerial.readBytesUntil(13, EC_data, 48);
-    EC_data[received_from_sensor] = 0; // Null terminate the data by setting the value after the final character to 0.
+  received_from_sensor = ecSerial.readBytesUntil(13, EC_data, 48);
+  EC_data[received_from_sensor] = 0; // Null terminate the data by setting the value after the final character to 0.
 
-    if ((EC_data[0] >= 48) && (EC_data[0] <= 57)) { // Parse data, if EC_data begins with a digit, not a letter (testing ASCII values).
+  if ((EC_data[0] >= 48) && (EC_data[0] <= 57)) { // Parse data, if EC_data begins with a digit, not a letter (testing ASCII values).
 
-      parse_data();
+    parse_data();
 
-    }
+  }
 
-    // Read the two temperature sensors.
-    if (millis() - tempADelayStartTime > requiredmeasurementDelay) { // wait for conversion to happen before attempting to read temp probe A's value;
-      tempA = get_temp_c_by_index(0);
-      sensors.requestTemperaturesByIndex(0);  // request temp sensor A start mesuring so it can be read on the following loop (if enough time elapses).
-      tempADelayStartTime = millis();  // mark when we made the request to make sure we wait long enough before reading it.
-    }
-    if (millis() - tempBDelayStartTime > requiredmeasurementDelay) { // wait for conversion to happen before attempting to read temp probe B's value;
-      tempB = get_temp_c_by_index(1);
-      sensors.requestTemperaturesByIndex(1);  // request temp sensor B start mesuring so it can be read on the following loop (if enough time elapses).
-      tempBDelayStartTime = millis();  // mark when we made the request to make sure we wait long enough before reading it.
-    }
+  // Read the two temperature sensors.
+  if (millis() - tempADelayStartTime > requiredmeasurementDelay) { // wait for conversion to happen before attempting to read temp probe A's value;
+    tempA = get_temp_c_by_index(0);
+    sensors.requestTemperaturesByIndex(0);  // request temp sensor A start measuring so it can be read on the following loop (if enough time elapses).
+    tempADelayStartTime = millis();  // mark when we made the request to make sure we wait long enough before reading it.
+  }
+  if (millis() - tempBDelayStartTime > requiredmeasurementDelay) { // wait for conversion to happen before attempting to read temp probe B's value;
+    tempB = get_temp_c_by_index(1);
+    sensors.requestTemperaturesByIndex(1);  // request temp sensor B start measuring so it can be read on the following loop (if enough time elapses).
+    tempBDelayStartTime = millis();  // mark when we made the request to make sure we wait long enough before reading it.
+  }
 
-    sensor.readSensor(); //read pressure sensor
-    pressure_abs = sensor.pressure();
+  sensor.readSensor(); //read pressure sensor
+  pressure_abs = sensor.pressure();
 
-    DateTime now = rtc.now(); //check RTC
-    char dateTimeString[40];
-    get_date_time_string(dateTimeString, now);
+  DateTime now = rtc.now(); //check RTC
+  char dateTimeString[40];
+  get_date_time_string(dateTimeString, now);
 
-    //output readings to serial
-    Serial.print(dateTimeString);
-    Serial.print(", ");
-    Serial.print(pressure_abs);
-    Serial.print(", ");
-    Serial.print(tempA);
-    Serial.print(", ");
-    Serial.print(tempB);
-    Serial.print(", ");
-    Serial.print(EC);
-    Serial.print(", ");
-    Serial.print(measurements);
-    Serial.print(", ");
-    Serial.println(millis());
+  //output readings to serial
+  Serial.print(dateTimeString);
+  Serial.print(", ");
+  Serial.print(pressure_abs);
+  Serial.print(", ");
+  Serial.print(tempA);
+  Serial.print(", ");
+  Serial.print(tempB);
+  Serial.print(", ");
+  Serial.print(EC);
+  Serial.print(", ");
+  Serial.print(measurements);
+  Serial.print(", ");
+  Serial.println(millis());
 
-    File dataFile = SD.open(datalogFileName, FILE_WRITE);
-    if (dataFile) {
+  File dataFile = SD.open(datalogFileName, FILE_WRITE);
+  if (dataFile) {
 
-      dataFile.print(dateTimeString);
-      dataFile.print(",");
-      dataFile.print(pressure_abs);
-      dataFile.print(",");
-      dataFile.print(tempA);
-      dataFile.print(",");
-      dataFile.print(tempB);
-      dataFile.print(",");
-      dataFile.println(EC);
-      dataFile.close();
+    dataFile.print(dateTimeString);
+    dataFile.print(",");
+    dataFile.print(pressure_abs);
+    dataFile.print(",");
+    dataFile.print(tempA);
+    dataFile.print(",");
+    dataFile.print(tempB);
+    dataFile.print(",");
+    dataFile.println(EC);
+    dataFile.close();
 
-    }
   }
 }
 
@@ -343,7 +357,7 @@ void parse_data() { // Parses data from the EC Circuit.
 void get_date_time_string(char* outStr, DateTime date) {
   // outputs the date as a date time string,
   sprintf(outStr, "%02d/%02d/%02d,%02d:%02d:%02d", date.month(), date.day(), date.year(), date.hour(), date.minute(), date.second());
-  // Note: If you would like the date & time to be seperate columns chabge the space in the formatting string to a comma - this works because the file type is CSV (Comma Seperated Values)
+  // Note: If you would like the date & time to be seperate columns change the space in the formatting string to a comma - this works because the file type is CSV (Comma Seperated Values)
 }
 
 void SDCardDateTimeCallback(uint16_t* date, uint16_t* time) // This funny function allows the sd-library to set the correct file created & modified dates for all sd card files (As would show up in the file explorer on your computer)
@@ -353,6 +367,7 @@ void SDCardDateTimeCallback(uint16_t* date, uint16_t* time) // This funny functi
   *time = FAT_TIME(now.hour(), now.minute(), now.second());
 }
 
+// updates current filename to next increasing numerical filename
 void get_numbered_filename(char* outStr, char* filePrefix, char* fileExtension) {
 
   // Make base filename
@@ -372,4 +387,50 @@ void get_numbered_filename(char* outStr, char* filePrefix, char* fileExtension) 
 
   }
 
+}
+
+// lists all files in root directory of SD card
+void printDirectory(File dir, int numTabs) {
+  while (true) {
+
+    File entry =  dir.openNextFile();
+    if (! entry) {
+      // no more files
+      break;
+    }
+    for (uint8_t i = 0; i < numTabs; i++) {
+      Serial.print('\t');
+    }
+    Serial.print(entry.name());
+    if (entry.isDirectory()) {
+      Serial.println("/");
+      printDirectory(entry, numTabs + 1);
+    } else {
+      // files have sizes, directories do not
+      Serial.print("\t\t");
+      Serial.println(entry.size(), DEC);
+    }
+    entry.close();
+  }
+}
+
+// deletes all files in root directory of SD card
+void wipeDirectory()
+{
+  String filetodelete = "";
+  while (true)
+  {
+    File root = SD.open("/");
+    File entry = root.openNextFile();
+    if (! entry)
+    {
+      return;
+    }
+    else
+    {
+      filetodelete = entry.name();
+    }
+    entry.close();
+    SD.remove(filetodelete);
+  }
 }

@@ -19,6 +19,7 @@ void loop() {
     gtSerial.write(rx_byte);
   }
 
+//  Serial.println(gtSerial.available());
   // check if byte available on the software serial port
   if (gtSerial.available()) {
     // get the byte from the software serial port
