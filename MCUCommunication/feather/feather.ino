@@ -3,6 +3,9 @@
 #define CYCLES_BEFORE_SLEEP 10 // Set the number of measurements taken before data logger goes to sleep (integer values ONLY)
 
 
+// libraries for creating Serial2 for Bluetooth communication
+#include <Arduino.h>   // required before wiring_private.h
+#include "wiring_private.h" // pinPeripheral() function
 
 // Date and time functions using a DS3231 RTC connected via I2C and Wire lib
 // RTC comes from Featherwing attachment
@@ -12,7 +15,7 @@
 // library for sleep mode
 #include <ArduinoLowPower.h>
 
-//serial peripheral interface and library for SD card reader
+// serial peripheral interface and library for SD card reader
 #include <SPI.h> //serial peripheral interface for SD card reader
 #include <SD.h> //library for SD card reader
 
@@ -25,9 +28,6 @@
 // libraries for temperature sensors
 #include <OneWire.h>
 #include <DallasTemperature.h>
-
-// define interrupt pin to use for wakeup
-const int int_pin = 10;
 
 RTC_DS3231 rtc; //define real-time clock
 
@@ -77,6 +77,20 @@ int measurements = 0;
 #define SLEEP 2
 int mode = LOG;
 
+// File for printing csv data to Bluetooth
+File root;
+
+// Serial port for Bluetooth communication
+Uart Serial2 (&sercom1, 11, 10, SERCOM_RX_PAD_0, UART_TX_PAD_2);
+
+void SERCOM1_Handler()
+{
+  Serial2.IrqHandler();
+}
+
+// define Bluetooth power pin (MOSFET gate)
+int blepowerpin = 9;
+
 void setup()
 {
   // comment the following three lines out for final deployment
@@ -88,112 +102,136 @@ void setup()
   Serial.begin(9600);
   // Serial 1 is Feather M0's Hardware UART (Tx/Rx pins)
   Serial1.begin(9600);
-  // Let head know CTD turned ON
+
+  // listen for head to set the correct mode
+  while (!Serial1.available());
+  // set the correct mode from head transmission
+  while (Serial1.available()) {
+    if (Serial1.read() == 'L') {
+      mode = LOG;
+      break;
+    }
+    else if (Serial1.read() == 'T') {
+      mode = TRANSMIT;
+      break;
+    }
+  }
+
+  // Let head know CTD turned ON and set the correct mode
   Serial1.write('-');  // - (ON) o (OFF) just like in switches
+
+  // setup Bluetooth communication port if in TRANSIT mode
+  if (mode == TRANSMIT) {
+    Serial2.begin(9600);
+    // Assign pins 10 & 11 SERCOM functionality
+    pinPeripheral(10, PIO_SERCOM);
+    pinPeripheral(11, PIO_SERCOM);
+  }
 
   // status LED for debugging
   //  pinMode(LED_BUILTIN, OUTPUT);
   //  digitalWrite(LED_BUILTIN, HIGH);
 
-  //Initialize SD card reader
-  Serial.print("Initializing SD card...");
-  while (!SD.begin(chipSelect)) {
+  else {
 
-    Serial.println("Card failed, or not present");
+    //Initialize SD card reader
+    Serial.print("Initializing SD card...");
+    while (!SD.begin(chipSelect)) {
+
+      Serial.println("Card failed, or not present");
+      delay(1000);
+
+    }
+
+    // This funny function allows the sd-library to set the correct file created & modified dates for all sd card files.
+    // (See the SDCardDateTimeCallback function defined at the end of this file)
+    SdFile::dateTimeCallback(SDCardDateTimeCallback);
+
+    Serial.println("card initialized.");
+    // Wait for SD card functions to terminate before continuing
     delay(1000);
 
-  }
+    if (! rtc.begin()) {
 
-  // This funny function allows the sd-library to set the correct file created & modified dates for all sd card files.
-  // (See the SDCardDateTimeCallback function defined at the end of this file)
-  SdFile::dateTimeCallback(SDCardDateTimeCallback);
+      Serial.println("Couldn't find RTC");
+    }
 
-  Serial.println("card initialized.");
-  // Wait for SD card functions to terminate before continuing
-  delay(1000);
+    get_numbered_filename(datalogFileName, "LOG", "CSV");
 
-  if (! rtc.begin()) {
+    Serial.print("Writing to datalog: ");
+    Serial.println(datalogFileName);
 
-    Serial.println("Couldn't find RTC");
-  }
+    File dataFile = SD.open(datalogFileName, FILE_WRITE);
 
-  get_numbered_filename(datalogFileName, "LOG", "CSV");
+    if (dataFile) {
+      Serial.println("====================================================");
+      Serial.println("Date Time,Pressure,Temp A,Temp B,Conductivity");
+      dataFile.println("Date Time,Pressure,Temp A,Temp B,Conductivity");
+      dataFile.close();
+      Serial.println("====================================================");
+      Serial.println("Datalogging done");
+    } else {
+      Serial.println("Err: Can't open datalog!");
+    }
 
-  Serial.print("Writing to datalog: ");
-  Serial.println(datalogFileName);
+    //Initialize real-time clock
+    if (rtc.lostPower()) {
 
-  File dataFile = SD.open(datalogFileName, FILE_WRITE);
+      //reset RTC with time when code was compiled if RTC loses power
+      Serial.println("RTC lost power, lets set the time!");
+      rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
 
-  if (dataFile) {
-    Serial.println("====================================================");
-    Serial.println("Date Time,Pressure,Temp A,Temp B,Conductivity");
-    dataFile.println("Date Time,Pressure,Temp A,Temp B,Conductivity");
-    dataFile.close();
-    Serial.println("====================================================");
-    Serial.println("Datalogging done");
-  } else {
-    Serial.println("Err: Can't open datalog!");
-  }
+    }
 
-  //Initialize real-time clock
-  if (rtc.lostPower()) {
+    delay(250);   // Wait a quarter second to continue.
 
-    //reset RTC with time when code was compiled if RTC loses power
-    Serial.println("RTC lost power, lets set the time!");
-    rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+    //Initialize pressure sensor
+    Serial.println("-- Pressure Sensor Info: --");
+    sensor.initializeMS_5803(); // Initialize pressure sensor
+    Serial.println("---------------------------");
 
-  }
+    // Intialize temperature sensors
+    sensors.begin();
+    sensors.setResolution(TEMP_SENSOR_RESOLUTION);  // Set the resolution (accuracy) of the temperature sensors.
+    sensors.requestTemperatures(); // on the first pass request all temperatures in a blocking way to start the variables with true data.
+    tempA = get_temp_c_by_index(0);
+    tempB = get_temp_c_by_index(1);
 
-  delay(250);   // Wait a quarter second to continue.
-
-  //Initialize pressure sensor
-  Serial.println("-- Pressure Sensor Info: --");
-  sensor.initializeMS_5803(); // Initialize pressure sensor
-  Serial.println("---------------------------");
-
-  // Intialize temperature sensors
-  sensors.begin();
-  sensors.setResolution(TEMP_SENSOR_RESOLUTION);  // Set the resolution (accuracy) of the temperature sensors.
-  sensors.requestTemperatures(); // on the first pass request all temperatures in a blocking way to start the variables with true data.
-  tempA = get_temp_c_by_index(0);
-  tempB = get_temp_c_by_index(1);
-
-  sensors.setWaitForConversion(false);  // Now tell the Dallas Temperature library to not block this script while it's waiting for the temperature measurement to happen
+    sensors.setWaitForConversion(false);  // Now tell the Dallas Temperature library to not block this script while it's waiting for the temperature measurement to happen
 
 
-  // Initialize conductivity sensor and circuit
-  ecSerial.begin(9600); // Set baud rate for conductivity circuit.
+    // Initialize conductivity sensor and circuit
+    ecSerial.begin(9600); // Set baud rate for conductivity circuit.
 
-  do {
+    do {
 
-    ecSerial.write('i');  // Tell electrical conductivity board to reply with the board information by sending the 'i' character ...
-    ecSerial.write('\r'); // ... Finish the command with the charage return character.
-    received_from_sensor = ecSerial.readBytesUntil('\r', EC_data, 30); // Wait for the ec circut to send the data before moving on...
+      ecSerial.write('i');  // Tell electrical conductivity board to reply with the board information by sending the 'i' character ...
+      ecSerial.write('\r'); // ... Finish the command with the charage return character.
+      received_from_sensor = ecSerial.readBytesUntil('\r', EC_data, 30); // Wait for the ec circut to send the data before moving on...
+      EC_data[received_from_sensor] = 0; // Null terminate the data by setting the value after the final character to 0.
+
+    } while (EC_data[1] != 'I'); // Keep looping until the ecSerial has sent the board info string (also indicating it has booted up, I think...)
+
+    Serial.print("EC Board Info (Format: ?I,[board type],[Firmware Version]) -> "); Serial.println(EC_data);
+
+    delay(10);
+    ecSerial.write('C');  // Tell electrical conductivity board to continously ("C") transmit measurements ...
+    ecSerial.write(',');  //
+    ecSerial.print(EC_SAMPLING_FREQUENCY);    // ... every x seconds (here x is the EC_SAMPLING_FREQUENCY variable)
+    ecSerial.write('\r'); // Finish the command with the carrage return character.
+
+    received_from_sensor = ecSerial.readBytesUntil('\r', EC_data, 10); // keep reading the reply until the return character is received (or it gets to be 10 characters long, which shouldn't happen)
     EC_data[received_from_sensor] = 0; // Null terminate the data by setting the value after the final character to 0.
+    Serial.print("EC Frequency Set Sucessfully? -> "); Serial.println(EC_data);
+    Serial.println("--- Starting Datalogging ---");
+    Serial.println(millis());
 
-  } while (EC_data[1] != 'I'); // Keep looping until the ecSerial has sent the board info string (also indicating it has booted up, I think...)
+    // reset number of measurements taken
+    measurements = 0;
 
-  Serial.print("EC Board Info (Format: ?I,[board type],[Firmware Version]) -> "); Serial.println(EC_data);
-
-  delay(10);
-  ecSerial.write('C');  // Tell electrical conductivity board to continously ("C") transmit measurements ...
-  ecSerial.write(',');  //
-  ecSerial.print(EC_SAMPLING_FREQUENCY);    // ... every x seconds (here x is the EC_SAMPLING_FREQUENCY variable)
-  ecSerial.write('\r'); // Finish the command with the carrage return character.
-
-  received_from_sensor = ecSerial.readBytesUntil('\r', EC_data, 10); // keep reading the reply until the return character is received (or it gets to be 10 characters long, which shouldn't happen)
-  EC_data[received_from_sensor] = 0; // Null terminate the data by setting the value after the final character to 0.
-  Serial.print("EC Frequency Set Sucessfully? -> "); Serial.println(EC_data);
-  Serial.println("--- Starting Datalogging ---");
-  Serial.println(millis());
-
-  // reset number of measurements taken
-  measurements = 0;
-  // enter logging mode upon restart
-  mode = LOG;
-
-  // turn off status LED to signify end of setup sequence
-  //  digitalWrite(LED_BUILTIN, LOW);
+    // turn off status LED to signify end of setup sequence
+    //  digitalWrite(LED_BUILTIN, LOW);
+  }
 }
 
 void loop()
@@ -201,32 +239,7 @@ void loop()
   //   uncomment when debugging to flash LED to show that loop function is running
   //      digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
 
-  //   first read UART port from head MCU to set mode or direct commands
-  String head_transmission = "";
-  while (Serial1.available()) {
-    head_transmission += Serial1.read();
-  }
-
-  // determine next step based on input from head
-  switch (head_transmission.length()) {
-    // if empty string, continue with same mode as before
-    case 0:
-      break;
-    case 1:
-      // if one character long, figure out command
-      if (head_transmission == "L") {  // L command lists all files on SD card
-        printDirectory(SD.open("/"), 0);
-      }
-      else if (head_transmission == "T") { // T command switches to TRANSMIT mode
-        mode = TRANSMIT;
-      }
-      break;
-    // if string longer than one character, ignore and continue with same mode as before
-    default:
-      break;
-  }
-
-  //   if in LOG mode, log a set of data
+  //   if in LOG mode, proceed with datalogging sequence
   if (mode == LOG) {
     if (ecSerial.available()) {
       log_data();
@@ -244,29 +257,32 @@ void loop()
       //      uncomment when debugging to emulate sleep with status LED turning off
       //      digitalWrite(LED_BUILTIN, LOW);
       mode = SLEEP;
-      // EC sensor doesn't actually sleep even though the following code should technically make it sleep
-      char sleepy[6] = {'S', 'l', 'e', 'e', 'p', '\r'};
-      for (int i = 0; i < 6; i++) {
-        ecSerial.write(sleepy[i]);
-      }
-      Serial.println("Told conductivity sensor to sleep.");
+      // EC sensor sleep
+      ecSleep();
+
       delay(1000);
 
       // set entire Feather to sleep (does not turn off 3.3V power rail)
       LowPower.deepSleep();
     }
   }
-  // else if in TRANSMIT mode, transmit data to head MCU
+
+  // else if in TRANSMIT mode, transmit data through Bluetooth
   else if (mode == TRANSMIT) {
-    // read SD card data
-    char sd_data[100];
-    // TODO: INSERT SD CARD READ FUNCTION WITH FILE SELECT FROM TRIPLE MPU DATA FILE READER CODE!!!
-
-    // write SD card data to head
-    Serial1.write("");
-
-
-
+    //   first read UART port from Bluetooth to check if phone receiver is ready
+    while (Serial2.available()) {
+      if (Serial2.read() == 'D') {
+        // print all SD card data over Bluetooth
+        printDirectory(SD.open("/"), 0);
+        // wipe all SD card data to free up space
+        wipeDirectory();
+        // turn off Bluetooth chip
+        digitalWrite(blepowerpin, LOW);
+        // tell head that Bluetooth communication sequence is over and CTD is turning off
+        Serial1.write('o');
+        LowPower.deepSleep();
+      }
+    }
   }
 
 }
@@ -389,28 +405,40 @@ void get_numbered_filename(char* outStr, char* filePrefix, char* fileExtension) 
 
 }
 
-// lists all files in root directory of SD card
+// prints all SD card files to Bluetooth
 void printDirectory(File dir, int numTabs) {
   while (true) {
+    String entryname = "";
+    while (true)
+    {
+      File entry = dir.openNextFile();
+      if (! entry)
+      {
+        if (numTabs == 0)
+          Serial2.println("** Done **");
+        return;
+      }
+      for (uint8_t i = 0; i < numTabs; i++)
+        Serial2.print('\t');
+      entryname = entry.name();
+      if (!entryname.startsWith("LOG")) {
+        continue;
+      }
+      Serial.println(entryname);
+      Serial2.print(entryname);
+      File dataFile = SD.open(entryname);
 
-    File entry =  dir.openNextFile();
-    if (! entry) {
-      // no more files
-      break;
+      // if the file is available, read from it:
+      if (dataFile) {
+        while (dataFile.available()) {
+          delay(10);
+          Serial2.write(dataFile.read());
+        }
+        dataFile.close();
+      }
+      delay(10);
+      entry.close();
     }
-    for (uint8_t i = 0; i < numTabs; i++) {
-      Serial.print('\t');
-    }
-    Serial.print(entry.name());
-    if (entry.isDirectory()) {
-      Serial.println("/");
-      printDirectory(entry, numTabs + 1);
-    } else {
-      // files have sizes, directories do not
-      Serial.print("\t\t");
-      Serial.println(entry.size(), DEC);
-    }
-    entry.close();
   }
 }
 
@@ -433,4 +461,12 @@ void wipeDirectory()
     entry.close();
     SD.remove(filetodelete);
   }
+}
+
+void ecSleep() {
+  char sleepy[6] = {'S', 'l', 'e', 'e', 'p', '\r'};
+  for (int i = 0; i < 6; i++) {
+    ecSerial.write(sleepy[i]);
+  }
+  Serial.println("Told conductivity sensor to sleep.");
 }
