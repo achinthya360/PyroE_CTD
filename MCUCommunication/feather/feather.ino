@@ -104,28 +104,34 @@ void setup()
   Serial1.begin(9600);
 
   // listen for head to set the correct mode
-  while (!Serial1.available());
+
+  // TODO: UNCOMMENT FOLLOWING LINES !!!
+//  while (!Serial1.available());
   // set the correct mode from head transmission
-  while (Serial1.available()) {
-    if (Serial1.read() == 'L') {
-      mode = LOG;
-      break;
-    }
-    else if (Serial1.read() == 'T') {
+//  while (Serial1.available()) {
+//    if (Serial1.read() == 'L') {
+//      mode = LOG;
+//      break;
+//    }
+//    else if (Serial1.read() == 'T') {
       mode = TRANSMIT;
-      break;
-    }
-  }
+//      break;
+//    }
+//  }
 
   // Let head know CTD turned ON and set the correct mode
   Serial1.write('-');  // - (ON) o (OFF) just like in switches
 
   // setup Bluetooth communication port if in TRANSIT mode
   if (mode == TRANSMIT) {
+    pinMode(blepowerpin, OUTPUT);
+    // turn on bluetooth module
+    digitalWrite(blepowerpin, HIGH);
     Serial2.begin(9600);
     // Assign pins 10 & 11 SERCOM functionality
     pinPeripheral(10, PIO_SERCOM);
     pinPeripheral(11, PIO_SERCOM);
+    ecSleep();
   }
 
   // status LED for debugging
@@ -259,6 +265,8 @@ void loop()
       mode = SLEEP;
       // EC sensor sleep
       ecSleep();
+//      digitalWrite(LED_BUILTIN, LOW);
+
 
       delay(1000);
 
@@ -275,7 +283,8 @@ void loop()
         // print all SD card data over Bluetooth
         printDirectory(SD.open("/"), 0);
         // wipe all SD card data to free up space
-        wipeDirectory();
+        // UNCOMMENT!!!
+//        wipeDirectory();
         // turn off Bluetooth chip
         digitalWrite(blepowerpin, LOW);
         // tell head that Bluetooth communication sequence is over and CTD is turning off
