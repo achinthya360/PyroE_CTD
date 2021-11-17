@@ -29,6 +29,12 @@ Servo ballast1;
 Servo ballast2;
 
 // 48V TAIL MOTOR CONTROL
+// powering on
+int magSwitchTimeOn;
+int magSwitchPin = 12; 
+int tailMotorOnPin = 24;
+
+// turning control
 #define kinematic_coeff 3.35
 const float max_speed = 5000; // maximum possible ~ 5000
 
@@ -70,7 +76,7 @@ void setup()
 
 
 
-  // MOTOR CONTROL
+  // MOTOR CONTROL  
   pinMode(bs1ONpin, OUTPUT);
   digitalWrite(bs2ONpin, LOW);
   pinMode(bs2ONpin, OUTPUT);
@@ -78,6 +84,11 @@ void setup()
   ballast1.attach(bs1controlPin);
   ballast2.attach(bs2controlPin);
   // 48V TAIL MOTOR CONTROL
+  // powering on with magnetic switch
+  pinMode(magSwitchPin, INPUT);
+  pinMode(tailMotorOnPin, OUTPUT);
+  digitalWrite(tailMotorOnPin, LOW);
+  // turning control
   stepper.setMaxSpeed(max_speed);
   stepper.setAcceleration(a);
   // this function should center the tail to 0 degrees (may need slight degree offset)
@@ -123,6 +134,8 @@ void loop()
   //  ballast1.write(//insert wanted position here);
   //  ballast2.write(//insert wanted position here);
   // 48V TAIL MOTOR CONTROL
+  // powering on with magnetic switch
+  
   // If at the end of travel go to the other end
   if (stepper.distanceToGo() == 0)
     stepper.moveTo(-stepper.currentPosition());
@@ -150,4 +163,9 @@ void centerTailMotor(){
   }
   stepper.stop();
   stepper.setCurrentPosition(0);
+}
+
+void tailMotorOn(){
+  magSwitchTimeOn = 0; 
+  Serial.println("Turned back on");
 }
