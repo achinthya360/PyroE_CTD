@@ -1,8 +1,14 @@
 // REQUIRED LIBRARIES
 #include <Servo.h>
 #include <AccelStepper.h>
+#include <TimeLib.h>
+#include <SPI.h> //serial peripheral interface for SD card reader
+#include <SD.h> //library for SD card reader
 
-// CONSTANTS AND VARIABLE DECLARATIONS
+// CONSTANTS AND VARIABLE DECLARATIONS //
+
+// SD CARD
+char datalogFileName[12] = "datalog.txt";
 
 // MCU COMMUNICATION
 const int trig = 2;
@@ -13,12 +19,14 @@ int leakPin = 9;
 bool leak = false;
 
 // WATER LEVEL SENSOR
-int wetPin = 8;
+int wetPin = 24;
 bool wet = false;
 
 // SHAFT ANGLE SENSOR
 int shaftAnglePin = 7;
 bool shaftAngle;
+
+// TODO: strain gauges
 
 // MOTORS
 int bs1ONpin = 5;
@@ -38,11 +46,11 @@ int tailMotorOnPin = 24;
 #define kinematic_coeff 3.35
 const float max_speed = 5000; // maximum possible ~ 5000
 
-float microsteps = 800; // from driver
-float theta_max = 30; // degrees
+float microsteps = 800; // from driver      CHANGE THIS BASED ON DRIVER STEPS/FULL CIRCLE
+float theta_max = 30; // degree amplitude   CHANGE THIS FOR DESIRED AMPLITUDE
 long amplitude = microsteps / 360 * theta_max; // microsteps needed to reach wanted angle
 //float accel = 90000;  // maximum possible ~ 85000
-float freq_wanted = 1;
+float freq_wanted = 1; // CHANGE THIS FOR DESIRED FREQUENCY
 
 // theoretical calculations assume constant linear stepping acceleration
 //float freq = 3.35 * sqrt(accel/(theta_max * microsteps)); // could be used to back calculate accel
@@ -56,6 +64,16 @@ void setup()
 {
   // only for testing with computer
   Serial.begin(9600);
+
+  // RTC
+  // set the Time library to use Teensy 3.0's RTC to keep time
+  setSyncProvider(getTeensy3Time);
+
+  // SD CARD
+  while (!SD.begin(chipSelect)) {
+      Serial.println("Card failed, or not present");
+      delay(1000);
+  }
 
   // MCU COMMUNICATION
 
@@ -73,6 +91,7 @@ void setup()
   pinMode(leakPin, INPUT);
   pinMode(wetPin, INPUT);
   pinMode(shaftAnglePin, INPUT);
+  // TODO: strain gauges
 
 
 
@@ -99,7 +118,7 @@ void setup()
 }
 void loop()
 {
-  // MCU COMMUNICATION
+  // MCU COMMUNICATION (to/from CTD)
 
   //  if(!wake and Serial1.read() == 'o'){
   //    pinMode(trig, OUTPUT); // connect and pull Feather's ENable pin to GND
@@ -128,6 +147,7 @@ void loop()
   // monitor if tail is centered
   shaftAngle = (digitalRead(shaftAnglePin) == 1) ? true : false;
 
+  // TODO: monitor strain gauges for velocity x and y
 
 
   // MOTOR CONTROL
@@ -149,7 +169,43 @@ void loop()
   Serial.print("\tWet: ");
   Serial.print(wet);
   Serial.print("\tShaft Angle: ");
-  Serial.println(shaftAngle);
+  Serial.print(shaftAngle);
+  Serial.print("\t");
+
+  // prints time
+  Serial.print(hour());
+  printDigits(minute());
+  printDigits(second());
+  Serial.print(" ");
+  Serial.print(day());
+  Serial.print(" ");
+  Serial.print(month());
+  Serial.print(" ");
+  Serial.print(year()); 
+  Serial.println(); 
+
+  // SD CARD WRITE
+  File dataFile = SD.open(datalogFileName, FILE_WRITE);
+  if (dataFile) {
+    dataFile.print(month());
+    dataFile.print(" ");
+    dataFile.print(day());
+    dataFile.print(" ");
+    dataFile.print(year());
+    dataFile.print(" ");
+    dataFile.print(hour());
+    printDigits(minute());
+    printDigits(second());
+    dataFile.print(", Leak: ");
+    dataFile.print(leak);
+    dataFile.print(", Water Level: ");
+    dataFile.print(wet);
+    dataFile.print(", Shaft Angle:");
+    dataFile.print(shaftAngle);
+    dataFile.print(",");
+    dataFile.println(EC);
+    dataFile.close();
+  }
 }
 
 void centerTailMotor(){
@@ -168,4 +224,10 @@ void centerTailMotor(){
 void tailMotorOn(){
   magSwitchTimeOn = 0; 
   Serial.println("Turned back on");
+}
+
+//RTC helper function
+time_t getTeensy3Time()
+{
+  return Teensy3Clock.get();
 }
