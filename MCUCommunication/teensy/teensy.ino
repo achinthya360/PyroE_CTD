@@ -15,7 +15,7 @@ const int trig = 2;
 bool wake = false;
 
 // LEAK SENSOR
-int leakPin = 9;
+int leakPin = 23;
 bool leak = false;
 
 // WATER LEVEL SENSOR
@@ -23,7 +23,7 @@ int wetPin = 24;
 bool wet = false;
 
 // SHAFT ANGLE SENSOR
-int shaftAnglePin = 7;
+int shaftAnglePin = 21;
 bool shaftAngle;
 
 // TODO: strain gauges
