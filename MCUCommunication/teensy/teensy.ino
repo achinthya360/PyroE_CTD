@@ -19,6 +19,7 @@ bool wake = false;
 
 // HEADING MPU
 int baudrate = 115200;
+int databytes;
 
 // TAIL MPU
 #define SERIAL_PORT Serial
@@ -113,7 +114,8 @@ void setup()
   //  digitalWrite(trig, HIGH);
   //  digitalWrite(LED_BUILTIN, HIGH);
 
-
+  // Heading MPU
+  Serial1.begin(115200);
 
   // SENSOR INTEGRATION
 
@@ -215,6 +217,8 @@ void loop()
   //    wake = false;
   //  }
 
+  // Heading MPU
+  // TODO: ADD RUSSELL'S MODULE READING CODE
 
 
   // SENSOR INTEGRATION
@@ -229,48 +233,11 @@ void loop()
   shaftAngle = (digitalRead(shaftAnglePin) == 1) ? true : false;
 
   // monitor strain gauges for velocity x and y
-  scale1reading = scale1.get_units(10); // average 10 readings for scale 1
-  scale2reading = scale2.get_units(10); // average 10 readings for scale 2
+  scale1reading = scale1.get_units(); // average 10 readings for scale 1
+  scale2reading = scale2.get_units(); // average 10 readings for scale 2
   
   // tail MPU
-  int moreData = readIMUDMP();//read quaternion and accel
-   if (moreData >=0) //function returns -1 if no data was read.
-   {
-
-      double accelMag = sqrt(quatx*quatx+quaty*quaty+quatz*quatz);
-      
-      if ((accelMag <=1075)||(accelMag >=925))  //slowly update the gravity data whenever the sensor is still.
-      {
-        float ema = 0.01;
-        gravityX = ema*quatx+(1-ema)*gravityX;
-        gravityY = ema*quaty+(1-ema)*gravityY;
-        gravityZ = ema*quatz+(1-ema)*gravityZ; 
-      }
-
-      // Re-orient the sensor so that gravity is down. See: https://stackoverflow.com/questions/1171849/finding-quaternion-representing-the-rotation-from-one-vector-to-another
-      // Basically, we want to rotate the whole system so that the gravity vector (x,y,z) maps onto the unit vector (0,0,-1)
-      // The cross-product of these two vectors is (-y,x,0) and the dot-product is (-z).
-      // The rotation quaternion is therefore given by (q0,q1,q2,q3) = (sqrt(x*x+y*y+z*z)-z , -y , x , 0); although this needs normalising before application.
-      double q0 = sqrt(gravityX*gravityX+gravityY*gravityY+gravityZ*gravityZ)-gravityZ;
-      double q1 = -gravityY;
-      double q2 = gravityX;
-      double q3 = 0;
-      double quatMag = sqrt(q0*q0+q1*q1+q2*q2+q3*q3);
-      q0 /= quatMag;
-      q1 /= quatMag;
-      q2 /= quatMag;
-      q3 /= quatMag;
-
-      //Perform Quaternion rotation through matrix multiplication
-      double newx = quatx*(1-2*q2*q2-2*q3*q3) + quaty*2*(q1*q2-q0*q3) + quatz*2*(q1*q3+q0*q2);
-      double newy = quatx*2*(q1*q2+q0*q3) + quaty*(1-2*q1*q1-2*q3*q3) + quatz*2*(q2*q3-q0*q1);
-      double newz = quatx*2*(q1*q3-q0*q2) + quaty*2*(q2*q3+q0*q1) + quatz*(1-2*q1*q1-2*q2*q2);     
-
-      //..and subtract gravity from the Z axis:
-      newz += sqrt(gravityX*gravityX+gravityY*gravityY+gravityZ*gravityZ);
-     
-      mpuOut = String(newx,4)+","+String(newy,4)+","+String(newz,4); // this should be the linear acceleration vector only if done right
-   }
+  readTailMPU();
 
   // MOTOR CONTROL
   //  ballast1.write(//insert wanted position here);
@@ -731,4 +698,45 @@ int readIMUDMP()
     {
       return 1; // More data
     }
+}
+
+void readTailMPU(){
+  int moreData = readIMUDMP();//read quaternion and accel
+   if (moreData >=0) //function returns -1 if no data was read.
+   {
+
+      double accelMag = sqrt(quatx*quatx+quaty*quaty+quatz*quatz);
+      
+      if ((accelMag <=1075)||(accelMag >=925))  //slowly update the gravity data whenever the sensor is still.
+      {
+        float ema = 0.01;
+        gravityX = ema*quatx+(1-ema)*gravityX;
+        gravityY = ema*quaty+(1-ema)*gravityY;
+        gravityZ = ema*quatz+(1-ema)*gravityZ; 
+      }
+
+      // Re-orient the sensor so that gravity is down. See: https://stackoverflow.com/questions/1171849/finding-quaternion-representing-the-rotation-from-one-vector-to-another
+      // Basically, we want to rotate the whole system so that the gravity vector (x,y,z) maps onto the unit vector (0,0,-1)
+      // The cross-product of these two vectors is (-y,x,0) and the dot-product is (-z).
+      // The rotation quaternion is therefore given by (q0,q1,q2,q3) = (sqrt(x*x+y*y+z*z)-z , -y , x , 0); although this needs normalising before application.
+      double q0 = sqrt(gravityX*gravityX+gravityY*gravityY+gravityZ*gravityZ)-gravityZ;
+      double q1 = -gravityY;
+      double q2 = gravityX;
+      double q3 = 0;
+      double quatMag = sqrt(q0*q0+q1*q1+q2*q2+q3*q3);
+      q0 /= quatMag;
+      q1 /= quatMag;
+      q2 /= quatMag;
+      q3 /= quatMag;
+
+      //Perform Quaternion rotation through matrix multiplication
+      double newx = quatx*(1-2*q2*q2-2*q3*q3) + quaty*2*(q1*q2-q0*q3) + quatz*2*(q1*q3+q0*q2);
+      double newy = quatx*2*(q1*q2+q0*q3) + quaty*(1-2*q1*q1-2*q3*q3) + quatz*2*(q2*q3-q0*q1);
+      double newz = quatx*2*(q1*q3-q0*q2) + quaty*2*(q2*q3+q0*q1) + quatz*(1-2*q1*q1-2*q2*q2);     
+
+      //..and subtract gravity from the Z axis:
+      newz += sqrt(gravityX*gravityX+gravityY*gravityY+gravityZ*gravityZ);
+     
+      mpuOut = String(newx,4)+","+String(newy,4)+","+String(newz,4); // this should be the linear acceleration vector only if done right
+   }
 }
