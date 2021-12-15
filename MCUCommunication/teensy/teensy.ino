@@ -18,8 +18,10 @@ const int trig = 2;
 bool wake = false;
 
 // HEADING MPU
-int baudrate = 115200;
-int databytes;
+// Buffer to store incoming commands from serial port
+String heading;
+double ax, ay, az;
+double q0,q1,q2,q3;
 
 // TAIL MPU
 #define SERIAL_PORT Serial
@@ -115,7 +117,9 @@ void setup()
   //  digitalWrite(LED_BUILTIN, HIGH);
 
   // Heading MPU
-  Serial1.begin(115200);
+  Serial1.begin(115200); //using TX1, RX1, pin 0 and pin1
+  //init the data output from IMU
+  Serial1.println("*");
 
   // SENSOR INTEGRATION
 
@@ -218,7 +222,18 @@ void loop()
   //  }
 
   // Heading MPU
-  // TODO: ADD RUSSELL'S MODULE READING CODE
+  if(Serial1.available() > 0) {
+     heading = Serial1.readStringUntil('\n');
+     Serial.println(heading);//print out to USB to debug
+     //convert to float
+     
+     char charBuf[heading.length() + 1];
+     heading.toCharArray(charBuf, heading.length());
+     int result = sscanf(charBuf, "%lf,%lf,%lf,%lf,%lf,%lf,%lf\n", &ax, &ay, &az, &q0, &q1, &q2, &q3);
+
+     //reset str
+     heading="";
+   }//end if read serial
 
 
   // SENSOR INTEGRATION
@@ -262,6 +277,8 @@ void loop()
     Serial.print(hour());
     printDigits(minute());
     printDigits(second());
+    Serial.print(", Heading: ");
+    Serial.print(heading);
     Serial.print(", Leak: ");
     Serial.print(leak);
     Serial.print(", Water Level: ");
@@ -287,6 +304,8 @@ void loop()
     dataFile.print(hour());
     SDprintDigits(minute(), dataFile);
     SDprintDigits(second(), dataFile);
+    dataFile.print(", Heading: ");
+    dataFile.print(heading);
     dataFile.print(", Leak:, ");
     dataFile.print(leak);
     dataFile.print(", Water Level:, ");
