@@ -93,15 +93,15 @@ int blepowerpin = 9;
 
 void setup()
 {
-  // comment the following three lines out for final deployment
-#ifndef ESP8266
-  while (!Serial && millis() < 20000); //for Leonardo/Micro/Zero - Wait for a computer to connect via serial or until a 20 second timeout has elapsed (This works because millis() starts counting the mlliseconds since the board turns on)
-#endif
+//  // comment the following three lines out for final deployment
+//#ifndef ESP8266
+//  while (!Serial && millis() < 20000); //for Leonardo/Micro/Zero - Wait for a computer to connect via serial or until a 20 second timeout has elapsed (This works because millis() starts counting the mlliseconds since the board turns on)
+//#endif
 
   // prints to PC
   Serial.begin(9600);
   // Serial 1 is Feather M0's Hardware UART (Tx/Rx pins)
-  Serial1.begin(9600);
+//  Serial1.begin(9600);
 
   // listen for head to set the correct mode
 
@@ -120,7 +120,7 @@ void setup()
 //  }
 
   // Let head know CTD turned ON and set the correct mode
-  Serial1.write('-');  // - (ON) o (OFF) just like in switches
+//  Serial1.write('-');  // - (ON) o (OFF) just like in switches
 
   // setup Bluetooth communication port if in TRANSIT mode
   if (mode == TRANSMIT) {
@@ -131,7 +131,7 @@ void setup()
     // Assign pins 10 & 11 SERCOM functionality
     pinPeripheral(10, PIO_SERCOM);
     pinPeripheral(11, PIO_SERCOM);
-    ecSleep();
+//    ecSleep();
   }
 
   // status LED for debugging
@@ -146,7 +146,6 @@ void setup()
 
       Serial.println("Card failed, or not present");
       delay(1000);
-
     }
 
     // This funny function allows the sd-library to set the correct file created & modified dates for all sd card files.
@@ -246,6 +245,7 @@ void loop()
   //      digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
 
   //   if in LOG mode, proceed with datalogging sequence
+  /* COMMENT BACK IN TO SWITCH BETWEEN LOG AND TRANSMIT MODES INSTEAD OF DOING BOTH
   if (mode == LOG) {
     if (ecSerial.available()) {
       log_data();
@@ -262,21 +262,22 @@ void loop()
 
       //      uncomment when debugging to emulate sleep with status LED turning off
       //      digitalWrite(LED_BUILTIN, LOW);
-      mode = SLEEP;
+//      mode = SLEEP;
       // EC sensor sleep
-      ecSleep();
+//      ecSleep();
 //      digitalWrite(LED_BUILTIN, LOW);
 
 
       delay(1000);
 
       // set entire Feather to sleep (does not turn off 3.3V power rail)
-      LowPower.deepSleep();
+//      LowPower.deepSleep();
     }
   }
-
+  */
   // else if in TRANSMIT mode, transmit data through Bluetooth
-  else if (mode == TRANSMIT) {
+  // comment back into line below to use ^ functionality
+  /*else*/ if (/*mode == TRANSMIT*/ true) {
     //   first read UART port from Bluetooth to check if phone receiver is ready
     while (Serial2.available()) {
       if (Serial2.read() == 'D') {
@@ -286,11 +287,18 @@ void loop()
         // UNCOMMENT!!!
 //        wipeDirectory();
         // turn off Bluetooth chip
-        digitalWrite(blepowerpin, LOW);
+//        digitalWrite(blepowerpin, LOW);
         // tell head that Bluetooth communication sequence is over and CTD is turning off
-        Serial1.write('o');
-        LowPower.deepSleep();
+//        Serial1.write('o');
+//        LowPower.deepSleep();
       }
+    }
+
+    // log data if the Bluetooth doesn't need to send it out in this loop iteration
+    if (ecSerial.available()) {
+          log_data();
+          // keep track of # of measurements taken before progressing into sleep mode
+          measurements++;
     }
   }
 
