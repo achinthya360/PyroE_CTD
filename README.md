@@ -15,3 +15,9 @@ This folder contains numerous sketches pertaining to breadboarding, calibrating,
 
 ### MCUCommunication
 This folder contains 2 main files (feather.ino and nano.ino) along with a few peripheral testing sketches used for testing Bluetooth or Wifi connectivity and SD card data retrieval capability. The feather.ino file contains all the code required for the CTD itself, and a large portion is attributed to the researchers at OpenCTD. The nano.ino file provides basic examples of code for turning on and off the CTD and communicating with it from a central MCU. In our case, we used an Arduino Nano Every microcontroller on our EEL robot's head. 
+
+### Extra info:
+Bluetooth Commands:
+https://docs.google.com/document/d/15tzf24LUGOdAkbHmA78yEyWiHE7d_mF4LLaTbkWwPSY/edit?usp=sharing
+Manual:
+https://docs.google.com/document/d/1CsEsWTur9dHu2vPHQrDwllO8IHEek2RX2XKdxYSUBIw/edit?usp=sharing
